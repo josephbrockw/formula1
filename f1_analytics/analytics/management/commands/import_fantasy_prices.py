@@ -45,13 +45,43 @@ class Command(BaseCommand):
         
         # Derive season from the year in the date
         season_year = snapshot_date.year
-        try:
-            season = Season.objects.get(year=season_year)
-            self.stdout.write(f"Found season: {season}")
-        except Season.DoesNotExist:
-            raise CommandError(
-                f'Season {season_year} not found in database. Please create it first.'
+        
+        if is_historical:
+            # For historical data, require season to exist
+            try:
+                season = Season.objects.get(year=season_year)
+                self.stdout.write(f"Found season: {season}")
+            except Season.DoesNotExist:
+                raise CommandError(
+                    f'Season {season_year} not found in database. Please create it first.'
+                )
+        else:
+            # For current data (today), create season if needed and manage active status
+            season, created = Season.objects.get_or_create(
+                year=season_year,
+                defaults={
+                    'name': f'{season_year} Formula 1 Season',
+                    'is_active': True
+                }
             )
+            
+            if created:
+                self.stdout.write(self.style.SUCCESS(f'Created new season: {season}'))
+                # Deactivate all other seasons
+                deactivated_count = Season.objects.exclude(year=season_year).filter(is_active=True).update(is_active=False)
+                if deactivated_count > 0:
+                    self.stdout.write(f"Deactivated {deactivated_count} other season(s)")
+            else:
+                self.stdout.write(f"Found season: {season}")
+                # Ensure this season is active and others are not
+                if not season.is_active:
+                    season.is_active = True
+                    season.save()
+                    self.stdout.write(f"Activated season: {season}")
+                
+                deactivated_count = Season.objects.exclude(year=season_year).filter(is_active=True).update(is_active=False)
+                if deactivated_count > 0:
+                    self.stdout.write(f"Deactivated {deactivated_count} other season(s)")
         
         # Construct file paths relative to project root
         date_formatted = snapshot_date.strftime('%Y-%m-%d')

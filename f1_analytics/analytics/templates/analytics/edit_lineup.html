@@ -1,0 +1,149 @@
+{% extends 'analytics/base.html' %}
+
+{% block title %}Edit Lineup - F1 Fantasy Analytics{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <!-- Header -->
+    <div class="mb-8">
+        <div class="flex items-center justify-between">
+            <div>
+                <h2 class="text-3xl font-bold text-gray-900">Edit Lineup</h2>
+                {% if latest_date %}
+                <p class="mt-2 text-sm text-gray-500">Prices as of {{ latest_date }}</p>
+                {% endif %}
+            </div>
+            <a href="{% url 'dashboard' %}" class="text-sm text-gray-600 hover:text-gray-900">
+                ← Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Messages -->
+    {% if messages %}
+    <div class="mb-6 space-y-2">
+        {% for message in messages %}
+        <div class="{% if message.tags == 'success' %}bg-green-50 border-green-400 text-green-800{% elif message.tags == 'error' %}bg-red-50 border-red-400 text-red-800{% else %}bg-blue-50 border-blue-400 text-blue-800{% endif %} border-l-4 p-4 rounded">
+            <p class="text-sm">{{ message }}</p>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Form -->
+    <form method="post" class="bg-white shadow-md rounded-lg overflow-hidden">
+        {% csrf_token %}
+        
+        {% if form.non_field_errors %}
+        <div class="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    {% for error in form.non_field_errors %}
+                    <p class="text-sm text-red-700">{{ error }}</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="p-6 space-y-8">
+            <!-- Drivers Section -->
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">
+                    Select 5 Drivers
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {% for field in form %}
+                    {% if 'driver' in field.name and field.name != 'drs_driver' %}
+                    <div>
+                        <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+                            {{ field.label }}
+                        </label>
+                        {{ field }}
+                        {% if field.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ field.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- DRS Driver Section -->
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">
+                    DRS Driver
+                </h3>
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                    <p class="text-sm text-yellow-800">
+                        <strong>Note:</strong> The DRS driver must be one of the 5 drivers selected above. This driver will receive DRS bonus points.
+                    </p>
+                </div>
+                <div>
+                    <label for="{{ form.drs_driver.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+                        {{ form.drs_driver.label }}
+                    </label>
+                    {{ form.drs_driver }}
+                    {% if form.drs_driver.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.drs_driver.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Constructors Section -->
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">
+                    Select 2 Constructors
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {% for field in form %}
+                    {% if 'team' in field.name %}
+                    <div>
+                        <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+                            {{ field.label }}
+                        </label>
+                        {{ field }}
+                        {% if field.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ field.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Budget Section -->
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">
+                    Budget
+                </h3>
+                <div class="max-w-xs">
+                    <label for="{{ form.cap_space.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+                        {{ form.cap_space.label }}
+                    </label>
+                    {{ form.cap_space }}
+                    {% if form.cap_space.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.cap_space.errors.0 }}</p>
+                    {% endif %}
+                    <p class="mt-2 text-xs text-gray-500">Enter the remaining budget in millions (e.g., 5.5 for $5.5M)</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="bg-gray-50 px-6 py-4 flex items-center justify-between border-t border-gray-200">
+            <a href="{% url 'dashboard' %}" class="text-sm text-gray-600 hover:text-gray-900">
+                Cancel
+            </a>
+            <button type="submit" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                Save Lineup
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

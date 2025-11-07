@@ -1,7 +1,8 @@
 from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.db.models import F
 from .models import (
-    Season, Team, Driver, DriverSnapshot, ConstructorSnapshot,
+    User, Season, Team, Driver, DriverSnapshot, ConstructorSnapshot, CurrentLineup,
 )
 
 
@@ -76,4 +77,40 @@ class ConstructorSnapshotAdmin(admin.ModelAdmin):
     def points_per_million_display(self, obj):
         return f"{obj.points_per_million:.2f}"
     points_per_million_display.short_description = 'Points per Million'
+
+
+@admin.register(User)
+class UserAdmin(BaseUserAdmin):
+    """Custom User admin"""
+    pass
+
+
+@admin.register(CurrentLineup)
+class CurrentLineupAdmin(admin.ModelAdmin):
+    list_display = ['user', 'updated_at', 'cap_space', 'total_budget_display']
+    list_filter = ['user', 'updated_at']
+    readonly_fields = ['created_at', 'updated_at', 'total_budget_display']
+    
+    fieldsets = (
+        ('User', {
+            'fields': ('user',)
+        }),
+        ('Drivers', {
+            'fields': ('driver1', 'driver2', 'driver3', 'driver4', 'driver5', 'drs_driver')
+        }),
+        ('Constructors', {
+            'fields': ('team1', 'team2')
+        }),
+        ('Budget', {
+            'fields': ('cap_space', 'total_budget_display')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def total_budget_display(self, obj):
+        return f"${obj.total_budget}M"
+    total_budget_display.short_description = 'Total Budget'
 
