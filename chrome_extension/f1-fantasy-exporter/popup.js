@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', function() {
   const exportDriversBtn = document.getElementById('exportDrivers');
   const exportConstructorsBtn = document.getElementById('exportConstructors');
+  const exportDriverPerformanceBtn = document.getElementById('exportDriverPerformance');
   const statusDiv = document.getElementById('status');
 
   function showStatus(message, type) {
@@ -11,12 +12,16 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 3000);
   }
 
-  function getDateFilename(suffix) {
+  function getDatePrefix() {
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}-${suffix}.csv`;
+    return `${year}-${month}-${day}`;
+  }
+
+  function getDateFilename(suffix) {
+    return `${getDatePrefix()}-${suffix}.csv`;
   }
 
   exportDriversBtn.addEventListener('click', async () => {
@@ -119,11 +124,71 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
+  exportDriverPerformanceBtn.addEventListener('click', async () => {
+    try {
+      exportDriverPerformanceBtn.disabled = true;
+      showStatus('Extracting driver performance data...', 'info');
+
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      
+      chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        function: extractDriverPerformanceData
+      }, (results) => {
+        if (chrome.runtime.lastError) {
+          showStatus('Error: ' + chrome.runtime.lastError.message, 'error');
+          exportDriverPerformanceBtn.disabled = false;
+          return;
+        }
+
+        if (results && results[0] && results[0].result) {
+          const result = results[0].result;
+          
+          if (!result || !result.data || result.data.length === 0) {
+            showStatus('No performance data found. Make sure you are on a driver detail page.', 'error');
+          } else {
+            // Use driver name in filename
+            const driverSlug = result.driverName
+              .toLowerCase()
+              .replace(/\s+/g, '-')
+              .replace(/[^a-z0-9-]/g, '');
+            const filename = `${getDatePrefix()}-${driverSlug}-performance.csv`;
+            downloadCSV(result.data, filename);
+            showStatus(`Exported ${result.data.length} performance records for ${result.driverName}!`, 'success');
+          }
+        } else {
+          showStatus('No data found', 'error');
+        }
+        exportDriverPerformanceBtn.disabled = false;
+      });
+    } catch (error) {
+      showStatus('Error: ' + error.message, 'error');
+      exportDriverPerformanceBtn.disabled = false;
+    }
+  });
+
   function downloadCSV(data, filename) {
     if (data.length === 0) return;
 
-    // Get headers from first object
-    const headers = Object.keys(data[0]);
+    // Define explicit column order for driver performance data
+    let headers;
+    if (filename.includes('performance')) {
+      headers = [
+        'Driver Name',
+        'Driver Value',
+        'Race',
+        'Event Type',
+        'Scoring Item',
+        'Frequency',
+        'Position',
+        'Points',
+        'Race Total',
+        'Season Total'
+      ];
+    } else {
+      // For other exports, use keys from first object
+      headers = Object.keys(data[0]);
+    }
     
     // Create CSV content
     let csv = headers.join(',') + '\n';
@@ -318,4 +383,119 @@ function extractConstructorData() {
   });
 
   return constructors;
+}
+
+// This function will be injected into the page to extract driver performance data
+function extractDriverPerformanceData() {
+  const performanceData = [];
+  
+  // Get driver info from the popup
+  const driverNameSpans = document.querySelectorAll('.si-player__name span');
+  let driverName = '';
+  if (driverNameSpans.length >= 2) {
+    const firstName = driverNameSpans[0].textContent.trim();
+    const lastName = driverNameSpans[1].textContent.trim();
+    // Capitalize first letter of each name
+    driverName = firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase() + ' ' + 
+                 lastName.charAt(0).toUpperCase() + lastName.slice(1).toLowerCase();
+  }
+  
+  // Return early if no driver name found
+  if (!driverName) {
+    return { driverName: 'Unknown', data: [] };
+  }
+  
+  // Get driver value
+  const driverValueElement = document.querySelector('.si-player__trends span');
+  const driverValue = driverValueElement ? driverValueElement.textContent.trim() : '';
+  
+  // Get season total
+  const seasonTotalElement = document.querySelector('.si-driCon__list li[aria-label*="Season Points"] .si-driCon__list-stats span');
+  const seasonTotal = seasonTotalElement ? seasonTotalElement.textContent.trim().replace(/\s*Pts.*/, '') : '';
+  
+  // Get all race accordion items
+  const accordions = document.querySelectorAll('.si-accordion__box');
+  
+  accordions.forEach(accordion => {
+    // Get race name from the title
+    const raceTitle = accordion.querySelector('.si-league__card-title span');
+    const raceName = raceTitle ? raceTitle.textContent.trim() : '';
+    
+    // Skip the "Season" accordion
+    if (raceName === 'Season') {
+      return;
+    }
+    
+    // Get total points for this race
+    const raceTotalElement = accordion.querySelector('.si-totalPts__counts span em');
+    const raceTotal = raceTotalElement ? raceTotalElement.textContent.trim() : '';
+    
+    // Get the performance table
+    const tbody = accordion.querySelector('.si-performance__tbl tbody');
+    
+    if (tbody) {
+      const rows = tbody.querySelectorAll('tr');
+      
+      rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        
+        if (cells.length >= 3) {
+          const eventDescription = cells[0].textContent.trim();
+          const frequencyText = cells[1].textContent.trim();
+          const pointsText = cells[2].textContent.trim();
+          
+          // Extract just the number from points (could be positive or negative)
+          const pointsMatch = pointsText.match(/(-?\d+)/);
+          const points = pointsMatch ? pointsMatch[1] : '0';
+          
+          // Determine event type based on description
+          let eventType = 'race'; // default
+          if (eventDescription.toLowerCase().includes('qualifying')) {
+            eventType = 'qualifying';
+          } else if (eventDescription.toLowerCase().includes('sprint')) {
+            eventType = 'sprint';
+          } else if (eventDescription.toLowerCase().includes('weekend')) {
+            eventType = 'weekend';
+          }
+          
+          // Parse frequency/position
+          let position = '';
+          let frequency = '';
+          
+          if (frequencyText && frequencyText !== '-') {
+            // Check if it's a position (1st, 2nd, 3rd, etc.)
+            const positionMatch = frequencyText.match(/^(\d+)(st|nd|rd|th)$/i);
+            if (positionMatch) {
+              position = positionMatch[1]; // Extract just the number
+            } else {
+              // Check if it's a plain integer
+              const intMatch = frequencyText.match(/^\d+$/);
+              if (intMatch) {
+                frequency = frequencyText;
+              }
+            }
+          }
+          
+          performanceData.push({
+            'Driver Name': driverName,
+            'Driver Value': driverValue,
+            'Race': raceName,
+            'Event Type': eventType,
+            'Scoring Item': eventDescription,
+            'Frequency': frequency,
+            'Position': position,
+            'Points': points,
+            'Race Total': raceTotal,
+            'Season Total': seasonTotal
+          });
+        }
+      });
+    }
+  });
+  
+  // Return object with driver name and data array
+  return {
+    driverName: driverName,
+    data: performanceData
+  };
 }

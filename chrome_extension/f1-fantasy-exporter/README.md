@@ -4,7 +4,7 @@ A Chrome extension that exports driver and constructor data from the F1 Fantasy 
 
 ## Features
 
-- Export all driver data including:
+- **Export Drivers** - Export all driver data including:
   - Driver name
   - Team
   - % Picked (ownership percentage)
@@ -12,7 +12,14 @@ A Chrome extension that exports driver and constructor data from the F1 Fantasy 
   - Current Value
   - Price Change (negative for decreases, positive for increases)
 
-- Export all constructor data with the same fields
+- **Export Constructors** - Export all constructor data with the same fields
+
+- **Export Driver Performance** (NEW in v1.3) - Export detailed race-by-race performance data:
+  - Event-level breakdown (Qualifying, Sprint, Race)
+  - Points by event type
+  - Overtakes, positions gained/lost
+  - Fastest lap and Driver of the Day bonuses
+  - Filename includes driver name for easy identification
 
 ## Installation
 
@@ -42,6 +49,8 @@ A Chrome extension that exports driver and constructor data from the F1 Fantasy 
 
 ## Usage
 
+### Exporting Current Prices (Drivers & Constructors)
+
 1. Navigate to the F1 Fantasy website: https://fantasy.formula1.com/
 
 2. Go to the page where you can see the driver or constructor list (usually in the team selection area)
@@ -53,6 +62,16 @@ A Chrome extension that exports driver and constructor data from the F1 Fantasy 
    - Click "Export Constructors" to download constructor data as CSV (make sure you're on the Constructors tab first)
 
 5. The CSV file will be automatically downloaded to your default downloads folder with the current date in the filename (e.g., `2025-11-07-drivers.csv`)
+
+### Exporting Driver Performance Data
+
+1. Navigate to any driver's detail page on F1 Fantasy (click on a driver card)
+
+2. Click the F1 Fantasy Exporter extension icon
+
+3. Click "Export Driver Performance"
+
+4. The CSV file will be downloaded with the driver's name in the filename (e.g., `2025-11-07-lando-norris-performance.csv`)
 
 ## CSV Format
 
@@ -72,6 +91,26 @@ Constructor Name,% Picked,Season Points,Current Value,Price Change
 McLaren,45.00,1199,$32.0M,$0.5M
 ...
 ```
+
+### Driver Performance CSV (e.g., `2025-11-07-lando-norris-performance.csv`)
+```csv
+Driver Name,Driver Value,Event Type,Scoring Item,Season Total,Race,Race Total,Frequency,Position,Points
+Lando Norris,$30.4M,qualifying,Qualifying Position,614,Australia,59,,1,10
+Lando Norris,$30.4M,race,Race Position,614,Australia,59,,2,18
+Lando Norris,$30.4M,race,Race Positions Gained,614,Australia,59,5,,5
+Lando Norris,$30.4M,race,Race Overtake Bonus,614,Australia,59,8,,8
+Lando Norris,$30.4M,sprint,Sprint Position,614,China,41,,3,6
+Lando Norris,$30.4M,race,Driver Of The Day,614,China,41,,,10
+...
+```
+
+**Column Descriptions:**
+- **Event Type**: Category (`qualifying`, `sprint`, `race`, `weekend`)
+- **Scoring Item**: The specific fantasy scoring action
+- **Frequency**: Count/number for frequency-based items (overtakes, positions gained/lost). Empty if not applicable.
+- **Position**: Final position for position-based items (1st → 1, 2nd → 2, etc.). Empty if not applicable.
+
+**Scoring Items** include: Qualifying Position, Race Position, Sprint Position, Race Overtake Bonus, Race Positions Gained/Lost, Fastest Lap, Driver Of The Day, etc.
 
 ## Troubleshooting
 
@@ -119,6 +158,11 @@ MIT License - Feel free to modify and distribute
 
 ## Version History
 
+- **1.3** - Driver Performance Export (Current)
+  - NEW: Export detailed race-by-race driver performance data
+  - Includes event-level breakdowns (Qualifying, Sprint, Race)
+  - Tracks overtakes, positions gained/lost, bonuses
+  - Filenames include driver name (e.g., `2025-11-07-lando-norris-performance.csv`)
 - **1.2** - Date-based filenames (YYYY-MM-DD format)
 - **1.1** - Fixed dual-export bug, added automatic tab switching
 - **1.0** - Initial release
