@@ -87,7 +87,7 @@ class Command(BaseCommand):
         date_formatted = snapshot_date.strftime('%Y-%m-%d')
         # Get the project base directory (f1_analytics)
         base_dir = Path(settings.BASE_DIR)
-        data_dir = base_dir / 'data' / str(season.year)
+        data_dir = base_dir / 'data' / str(season.year) / 'snapshots'
         drivers_file = data_dir / f'{date_formatted}-drivers.csv'
         constructors_file = data_dir / f'{date_formatted}-constructors.csv'
         
