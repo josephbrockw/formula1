@@ -127,52 +127,91 @@ document.addEventListener('DOMContentLoaded', function() {
   exportDriverPerformanceBtn.addEventListener('click', async () => {
     try {
       exportDriverPerformanceBtn.disabled = true;
-      showStatus('Starting automated export...', 'info');
+      showStatus('Starting automated export (drivers + constructors)...', 'info');
 
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       
-      // Start the automated export process
+      // Step 1: Export drivers
+      showStatus('Exporting driver performance...', 'info');
       chrome.scripting.executeScript({
         target: { tabId: tab.id },
         function: automateDriverPerformanceExport
-      }, (results) => {
+      }, (driverResults) => {
         if (chrome.runtime.lastError) {
           showStatus('Error: ' + chrome.runtime.lastError.message, 'error');
           exportDriverPerformanceBtn.disabled = false;
           return;
         }
 
-        if (results && results[0] && results[0].result) {
-          const allResults = results[0].result;
+        // Process driver results
+        let driverCount = 0;
+        let driverRecordCount = 0;
+        
+        if (driverResults && driverResults[0] && driverResults[0].result) {
+          const allDriverResults = driverResults[0].result;
           
-          if (!allResults || allResults.length === 0) {
-            showStatus('No driver cards found. Make sure you are on the drivers list page.', 'error');
-            exportDriverPerformanceBtn.disabled = false;
-          } else {
-            // Combine all driver data into one big array
-            const combinedData = [];
-            let driverCount = 0;
+          if (allDriverResults && allDriverResults.length > 0) {
+            const combinedDriverData = [];
             
-            allResults.forEach(result => {
+            allDriverResults.forEach(result => {
               if (result && result.data && result.data.length > 0) {
-                combinedData.push(...result.data);
+                combinedDriverData.push(...result.data);
                 driverCount++;
               }
             });
             
-            if (combinedData.length > 0) {
+            if (combinedDriverData.length > 0) {
               const filename = `${getDatePrefix()}-all-drivers-performance.csv`;
-              downloadCSV(combinedData, filename);
-              showStatus(`Successfully exported performance data for ${driverCount} drivers (${combinedData.length} records)!`, 'success');
-            } else {
-              showStatus('No performance data found', 'error');
+              downloadCSV(combinedDriverData, filename);
+              driverRecordCount = combinedDriverData.length;
             }
-            exportDriverPerformanceBtn.disabled = false;
           }
-        } else {
-          showStatus('No data found', 'error');
-          exportDriverPerformanceBtn.disabled = false;
         }
+        
+        // Step 2: Export constructors
+        showStatus('Exporting constructor performance...', 'info');
+        chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          function: automateConstructorPerformanceExport
+        }, (constructorResults) => {
+          if (chrome.runtime.lastError) {
+            showStatus(`Drivers exported (${driverCount}). Constructor error: ` + chrome.runtime.lastError.message, 'error');
+            exportDriverPerformanceBtn.disabled = false;
+            return;
+          }
+
+          // Process constructor results
+          let constructorCount = 0;
+          let constructorRecordCount = 0;
+          
+          if (constructorResults && constructorResults[0] && constructorResults[0].result) {
+            const allConstructorResults = constructorResults[0].result;
+            
+            if (allConstructorResults && allConstructorResults.length > 0) {
+              const combinedConstructorData = [];
+              
+              allConstructorResults.forEach(result => {
+                if (result && result.data && result.data.length > 0) {
+                  combinedConstructorData.push(...result.data);
+                  constructorCount++;
+                }
+              });
+              
+              if (combinedConstructorData.length > 0) {
+                const filename = `${getDatePrefix()}-all-constructors-performance.csv`;
+                downloadCSV(combinedConstructorData, filename);
+                constructorRecordCount = combinedConstructorData.length;
+              }
+            }
+          }
+          
+          // Final status
+          showStatus(
+            `✓ Exported ${driverCount} drivers (${driverRecordCount} records) + ${constructorCount} constructors (${constructorRecordCount} records)!`,
+            'success'
+          );
+          exportDriverPerformanceBtn.disabled = false;
+        });
       });
     } catch (error) {
       showStatus('Error: ' + error.message, 'error');
@@ -183,13 +222,26 @@ document.addEventListener('DOMContentLoaded', function() {
   function downloadCSV(data, filename) {
     if (data.length === 0) return;
 
-    // Define explicit column order for driver performance data
+    // Define explicit column order for performance data
     let headers;
-    if (filename.includes('performance')) {
+    if (filename.includes('drivers-performance')) {
       headers = [
         'Driver Name',
         'Team',
         'Driver Value',
+        'Race',
+        'Event Type',
+        'Scoring Item',
+        'Frequency',
+        'Position',
+        'Points',
+        'Race Total',
+        'Season Total'
+      ];
+    } else if (filename.includes('constructors-performance')) {
+      headers = [
+        'Constructor Name',
+        'Constructor Value',
         'Race',
         'Event Type',
         'Scoring Item',

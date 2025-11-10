@@ -14,15 +14,15 @@ A Chrome extension that exports driver and constructor data from the F1 Fantasy 
 
 - **Export Constructors** - Export all constructor data with the same fields
 
-- **Export Driver Performance** (NEW in v1.3) - Automated batch export of detailed race-by-race performance data:
-  - **Fully automated** - Click one button to export all drivers
-  - Automatically clicks through each driver card
+- **Export Performance Data** (NEW in v1.3) - Automated batch export of detailed race-by-race performance data:
+  - **Fully automated** - Click one button to export both drivers and constructors
+  - Automatically clicks through each driver card, then each constructor card
   - Event-level breakdown (Qualifying, Sprint, Race)
   - Points by event type
   - Overtakes, positions gained/lost
   - Fastest lap and Driver of the Day bonuses
-  - Team tracking (handles mid-season transfers)
-  - One combined CSV file with all drivers' data
+  - Team tracking for drivers (handles mid-season transfers)
+  - Two separate CSV files: one for drivers, one for constructors
 
 ## Installation
 
@@ -66,23 +66,25 @@ A Chrome extension that exports driver and constructor data from the F1 Fantasy 
 
 5. The CSV file will be automatically downloaded to your default downloads folder with the current date in the filename (e.g., `2025-11-07-drivers.csv`)
 
-### Exporting Driver Performance Data (Automated Batch Export)
+### Exporting Performance Data (Automated Batch Export)
 
 1. Navigate to the **Drivers** tab on the F1 Fantasy website (the page showing all drivers in a list)
 
 2. Click the F1 Fantasy Exporter extension icon
 
-3. Click "Export Driver Performance"
+3. Click "Export Performance Data"
 
 4. The extension will automatically:
-   - Click through each driver card
-   - Open their performance modal
-   - Extract all performance data
-   - Close the modal and move to the next driver
+   - Click through each driver card and extract their performance data
+   - Switch to the Constructors tab
+   - Click through each constructor card and extract their performance data
+   - Download two separate CSV files
    
-5. One combined CSV file will be downloaded with all drivers' performance data (e.g., `2025-11-07-all-drivers-performance.csv`)
+5. Two CSV files will be downloaded:
+   - `YYYY-MM-DD-all-drivers-performance.csv` - All driver performance data
+   - `YYYY-MM-DD-all-constructors-performance.csv` - All constructor performance data
 
-**Note**: The automation process may take a minute or two depending on how many drivers are in the list. Please keep the browser tab visible during the export.
+**Note**: The automation process may take 2-3 minutes depending on the number of drivers and constructors. Please keep the browser tab visible during the export.
 
 ## CSV Format
 
@@ -125,6 +127,25 @@ Max Verstappen,Red Bull Racing,$29.5M,Australia,qualifying,Qualifying Position,,
 
 **Scoring Items** include: Qualifying Position, Race Position, Sprint Position, Race Overtake Bonus, Race Positions Gained/Lost, Fastest Lap, Driver Of The Day, etc.
 
+### Constructor Performance CSV (e.g., `2025-11-07-all-constructors-performance.csv`)
+```csv
+Constructor Name,Constructor Value,Race,Event Type,Scoring Item,Frequency,Position,Points,Race Total,Season Total
+McLaren,$32.0M,Australia,qualifying,Qualifying Position,,1,10,95,1199
+McLaren,$32.0M,Australia,race,Race Position,,2,18,95,1199
+McLaren,$32.0M,Australia,race,Pitstop Bonus,2,,2,95,1199
+Ferrari,$31.5M,Australia,qualifying,Qualifying Position,,2,9,85,1134
+Red Bull Racing,$30.8M,Australia,race,Race Position,,1,25,82,1156
+...
+```
+
+**Column Descriptions:**
+- **Constructor Name**: Team name
+- **Constructor Value**: Fantasy price for the constructor
+- **Event Type**: Category (`qualifying`, `sprint`, `race`, `weekend`)
+- **Scoring Item**: The specific fantasy scoring action
+- **Frequency**: Count/number for frequency-based items (pitstops, positions gained). Empty if not applicable.
+- **Position**: Final position for position-based items. Empty if not applicable.
+
 ## Troubleshooting
 
 **Extension doesn't work:**
@@ -145,10 +166,18 @@ Max Verstappen,Red Bull Racing,$29.5M,Australia,qualifying,Qualifying Position,,
 The extension consists of:
 - `manifest.json` - Extension configuration
 - `popup.html` - Extension popup UI
-- `popup.js` - Popup logic and data extraction functions
+- `popup.js` - Main popup logic and orchestration (~440 lines)
+- `performance-export.js` - Driver performance export module (~370 lines)
+- `constructor-performance-export.js` - Constructor performance export module (~240 lines)
 - `content.js` - Content script (currently minimal)
 - `styles.css` - Popup styling
 - Icons (16x16, 48x48, 128x128)
+
+**Code Organization:**
+- Modular structure keeps file sizes manageable
+- Separate modules for different export types
+- Main popup.js orchestrates the workflow
+- Each module is self-contained and focused
 
 ### Modifying the Extension
 
@@ -171,14 +200,15 @@ MIT License - Feel free to modify and distribute
 
 ## Version History
 
-- **1.3** - Driver Performance Export (Current)
-  - NEW: Automated batch export of driver performance data
-  - Automatically clicks through all drivers on the list page
-  - Exports detailed race-by-race performance for each driver
+- **1.3** - Performance Data Export (Current)
+  - NEW: Automated batch export of driver AND constructor performance data
+  - Automatically clicks through all drivers, then all constructors
+  - Exports detailed race-by-race performance for each driver and constructor
   - Includes event-level breakdowns (Qualifying, Sprint, Race)
-  - Tracks overtakes, positions gained/lost, bonuses
-  - Team field for handling mid-season driver transfers
-  - One combined CSV file with all drivers (e.g., `2025-11-07-all-drivers-performance.csv`)
+  - Tracks overtakes, positions gained/lost, bonuses, pitstops
+  - Team field for drivers (handles mid-season driver transfers)
+  - Two separate CSV files: drivers and constructors
+  - Modular code structure (performance-export.js, constructor-performance-export.js)
 - **1.2** - Date-based filenames (YYYY-MM-DD format)
 - **1.1** - Fixed dual-export bug, added automatic tab switching
 - **1.0** - Initial release
