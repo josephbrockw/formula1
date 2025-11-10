@@ -194,6 +194,163 @@ class ConstructorSnapshot(models.Model):
         return 0
 
 
+class Race(models.Model):
+    """
+    Represents an individual Grand Prix event in a season.
+    Used to normalize race references and support track-specific analysis.
+    """
+    season = models.ForeignKey(Season, on_delete=models.CASCADE, related_name='races')
+    name = models.CharField(max_length=100, help_text="e.g., 'Bahrain', 'Australia', 'Monaco'")
+    round_number = models.IntegerField(
+        help_text="Race number in season (1 for first race, 2 for second, etc.)"
+    )
+    race_date = models.DateField(null=True, blank=True)
+    circuit_name = models.CharField(max_length=200, blank=True)
+    country = models.CharField(max_length=100, blank=True)
+    
+    class Meta:
+        ordering = ['season', 'round_number']
+        unique_together = [['season', 'name'], ['season', 'round_number']]
+        indexes = [
+            models.Index(fields=['season', 'round_number']),
+            models.Index(fields=['name']),
+        ]
+    
+    def __str__(self):
+        return f"{self.season.year} {self.name} GP (Round {self.round_number})"
+
+
+class DriverRacePerformance(models.Model):
+    """
+    Aggregated performance for a driver in a specific race.
+    This is the main table for ML/RL feature engineering.
+    
+    Design rationale:
+    - One record per driver per race for efficient aggregations
+    - Stores total points and fantasy price for value calculations
+    - Links to Race for track-specific analysis
+    - Supports time-series features (rolling averages, trends)
+    """
+    driver = models.ForeignKey(Driver, on_delete=models.CASCADE, related_name='race_performances')
+    race = models.ForeignKey(Race, on_delete=models.CASCADE, related_name='driver_performances')
+    team = models.ForeignKey(
+        Team, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        help_text="Team at time of race (handles mid-season transfers)"
+    )
+    
+    # Aggregate metrics for this race
+    total_points = models.IntegerField(
+        help_text="Total fantasy points earned in this race weekend"
+    )
+    fantasy_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        help_text="Driver's fantasy price at time of race (for value calculations)"
+    )
+    season_points_cumulative = models.IntegerField(
+        help_text="Cumulative season points after this race"
+    )
+    
+    # Event participation flags (for feature engineering)
+    had_qualifying = models.BooleanField(default=False)
+    had_sprint = models.BooleanField(default=False)
+    had_race = models.BooleanField(default=False)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['race__season', 'race__round_number', 'driver']
+        unique_together = [['driver', 'race']]
+        indexes = [
+            models.Index(fields=['driver', 'race']),
+            models.Index(fields=['race', '-total_points']),
+            models.Index(fields=['team', 'race']),
+        ]
+        verbose_name = 'Driver Race Performance'
+        verbose_name_plural = 'Driver Race Performances'
+    
+    def __str__(self):
+        return f"{self.driver.full_name} - {self.race.name} ({self.total_points} pts)"
+    
+    @property
+    def points_per_million(self):
+        """Value metric: points earned per million spent"""
+        if self.fantasy_price > 0:
+            return float(self.total_points) / float(self.fantasy_price)
+        return 0
+
+
+class DriverEventScore(models.Model):
+    """
+    Granular scoring details for individual events within a race weekend.
+    Links to DriverRacePerformance for aggregation.
+    
+    Design rationale:
+    - Stores individual scoring items (qualifying position, overtakes, etc.)
+    - Enables detailed breakdowns and pattern analysis
+    - Supports calculating consistency, variance, specific strengths
+    - Small table size (23 drivers × 24 races × ~10 items each = ~5500 rows/season)
+    """
+    
+    # Event type choices
+    EVENT_TYPE_CHOICES = [
+        ('qualifying', 'Qualifying'),
+        ('sprint', 'Sprint Race'),
+        ('race', 'Main Race'),
+        ('weekend', 'Weekend Bonus'),
+    ]
+    
+    performance = models.ForeignKey(
+        DriverRacePerformance, 
+        on_delete=models.CASCADE, 
+        related_name='event_scores'
+    )
+    
+    event_type = models.CharField(
+        max_length=20,
+        choices=EVENT_TYPE_CHOICES,
+        db_index=True,
+        help_text="Type of event (qualifying, sprint, race, weekend)"
+    )
+    
+    scoring_item = models.CharField(
+        max_length=100,
+        help_text="Specific scoring action (e.g., 'Qualifying Position', 'Race Overtake Bonus')"
+    )
+    
+    # Scoring details
+    points = models.IntegerField(help_text="Points earned for this item (can be negative)")
+    position = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Final position if applicable (1st, 2nd, etc.)"
+    )
+    frequency = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Count for frequency-based items (overtakes, positions gained)"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['performance__race', 'event_type', 'scoring_item']
+        indexes = [
+            models.Index(fields=['performance', 'event_type']),
+            models.Index(fields=['event_type', 'scoring_item']),
+        ]
+        verbose_name = 'Driver Event Score'
+        verbose_name_plural = 'Driver Event Scores'
+    
+    def __str__(self):
+        driver_name = self.performance.driver.full_name
+        race_name = self.performance.race.name
+        return f"{driver_name} - {race_name} - {self.event_type}: {self.scoring_item} ({self.points} pts)"
+
+
 class CurrentLineup(models.Model):
     """
     Represents my current lineup of drivers and teams
