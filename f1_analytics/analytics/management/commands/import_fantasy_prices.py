@@ -4,6 +4,9 @@ Management command to import driver and constructor data from CSV files
 Usage:
     python manage.py import_fantasy_prices --date 2025-11-07
     python manage.py import_fantasy_prices  # Uses today's date
+    
+If a file with the exact date is not found, the command will automatically
+fall back to the most recent file in the snapshots directory.
 """
 
 import csv
@@ -27,6 +30,37 @@ class Command(BaseCommand):
             type=str,
             help='Snapshot date (YYYY-MM-DD). Defaults to today if not provided'
         )
+
+    def find_most_recent_file(self, data_dir, file_type):
+        """Find the most recent file of a given type in the data directory
+        
+        Args:
+            data_dir: Path to the data directory
+            file_type: Either 'drivers' or 'constructors'
+            
+        Returns:
+            Tuple of (file_path, date) or (None, None) if no files found
+        """
+        if not data_dir.exists():
+            return None, None
+        
+        # Find all files matching the pattern
+        pattern = f'*-{file_type}.csv'
+        matching_files = list(data_dir.glob(pattern))
+        
+        if not matching_files:
+            return None, None
+        
+        # Sort by filename (which starts with date in YYYY-MM-DD format)
+        matching_files.sort(reverse=True)
+        most_recent_file = matching_files[0]
+        
+        # Extract date from filename (format: YYYY-MM-DD-drivers.csv)
+        filename = most_recent_file.name
+        date_str = filename.split('-' + file_type)[0]
+        file_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        
+        return most_recent_file, file_date
 
     def handle(self, *args, **options):
         # Get snapshot date (default to today)
@@ -98,9 +132,19 @@ class Command(BaseCommand):
                 f'Successfully imported {driver_count} driver snapshots for {snapshot_date}'
             ))
         else:
+            # Try to find most recent file
             self.stdout.write(self.style.WARNING(
                 f'Drivers file not found: {drivers_file}'
             ))
+            most_recent_file, file_date = self.find_most_recent_file(data_dir, 'drivers')
+            if most_recent_file:
+                self.stdout.write(f'Found most recent drivers file: {most_recent_file.name} (date: {file_date})')
+                driver_count = self.import_drivers(most_recent_file, season, file_date, update_current_team=not is_historical)
+                self.stdout.write(self.style.SUCCESS(
+                    f'Successfully imported {driver_count} driver snapshots from {file_date}'
+                ))
+            else:
+                self.stdout.write(self.style.ERROR('No drivers files found in directory'))
         
         # Import constructors
         if os.path.exists(constructors_file):
@@ -109,9 +153,19 @@ class Command(BaseCommand):
                 f'Successfully imported {constructor_count} constructor snapshots for {snapshot_date}'
             ))
         else:
+            # Try to find most recent file
             self.stdout.write(self.style.WARNING(
                 f'Constructors file not found: {constructors_file}'
             ))
+            most_recent_file, file_date = self.find_most_recent_file(data_dir, 'constructors')
+            if most_recent_file:
+                self.stdout.write(f'Found most recent constructors file: {most_recent_file.name} (date: {file_date})')
+                constructor_count = self.import_constructors(most_recent_file, season, file_date)
+                self.stdout.write(self.style.SUCCESS(
+                    f'Successfully imported {constructor_count} constructor snapshots from {file_date}'
+                ))
+            else:
+                self.stdout.write(self.style.ERROR('No constructors files found in directory'))
 
     def import_drivers(self, csv_file, season, snapshot_date, update_current_team=False):
         """Import driver data from CSV
