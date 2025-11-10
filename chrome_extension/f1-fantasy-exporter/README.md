@@ -14,13 +14,15 @@ A Chrome extension that exports driver and constructor data from the F1 Fantasy 
 
 - **Export Constructors** - Export all constructor data with the same fields
 
-- **Export Driver Performance** (NEW in v1.3) - Export detailed race-by-race performance data:
+- **Export Driver Performance** (NEW in v1.3) - Automated batch export of detailed race-by-race performance data:
+  - **Fully automated** - Click one button to export all drivers
+  - Automatically clicks through each driver card
   - Event-level breakdown (Qualifying, Sprint, Race)
   - Points by event type
   - Overtakes, positions gained/lost
   - Fastest lap and Driver of the Day bonuses
   - Team tracking (handles mid-season transfers)
-  - Filename includes driver name and team for easy identification
+  - One combined CSV file with all drivers' data
 
 ## Installation
 
@@ -64,15 +66,23 @@ A Chrome extension that exports driver and constructor data from the F1 Fantasy 
 
 5. The CSV file will be automatically downloaded to your default downloads folder with the current date in the filename (e.g., `2025-11-07-drivers.csv`)
 
-### Exporting Driver Performance Data
+### Exporting Driver Performance Data (Automated Batch Export)
 
-1. Navigate to any driver's detail page on F1 Fantasy (click on a driver card)
+1. Navigate to the **Drivers** tab on the F1 Fantasy website (the page showing all drivers in a list)
 
 2. Click the F1 Fantasy Exporter extension icon
 
 3. Click "Export Driver Performance"
 
-4. The CSV file will be downloaded with the driver's name and team in the filename (e.g., `2025-11-07-lando-norris-mclaren-performance.csv`)
+4. The extension will automatically:
+   - Click through each driver card
+   - Open their performance modal
+   - Extract all performance data
+   - Close the modal and move to the next driver
+   
+5. One combined CSV file will be downloaded with all drivers' performance data (e.g., `2025-11-07-all-drivers-performance.csv`)
+
+**Note**: The automation process may take a minute or two depending on how many drivers are in the list. Please keep the browser tab visible during the export.
 
 ## CSV Format
 
@@ -93,15 +103,15 @@ McLaren,45.00,1199,$32.0M,$0.5M
 ...
 ```
 
-### Driver Performance CSV (e.g., `2025-11-07-lando-norris-mclaren-performance.csv`)
+### Driver Performance CSV (e.g., `2025-11-07-all-drivers-performance.csv`)
 ```csv
 Driver Name,Team,Driver Value,Race,Event Type,Scoring Item,Frequency,Position,Points,Race Total,Season Total
 Lando Norris,McLaren,$30.4M,Australia,qualifying,Qualifying Position,,1,10,59,614
 Lando Norris,McLaren,$30.4M,Australia,race,Race Position,,2,18,59,614
 Lando Norris,McLaren,$30.4M,Australia,race,Race Positions Gained,5,,5,59,614
-Lando Norris,McLaren,$30.4M,Australia,race,Race Overtake Bonus,8,,8,59,614
-Lando Norris,McLaren,$30.4M,China,sprint,Sprint Position,,3,6,41,614
-Lando Norris,McLaren,$30.4M,China,race,Driver Of The Day,,,10,41,614
+Oscar Piastri,McLaren,$25.7M,Australia,qualifying,Qualifying Position,,2,9,50,584
+Oscar Piastri,McLaren,$25.7M,Australia,race,Race Position,,1,25,50,584
+Max Verstappen,Red Bull Racing,$29.5M,Australia,qualifying,Qualifying Position,,3,8,45,618
 ...
 ```
 
@@ -162,11 +172,13 @@ MIT License - Feel free to modify and distribute
 ## Version History
 
 - **1.3** - Driver Performance Export (Current)
-  - NEW: Export detailed race-by-race driver performance data
+  - NEW: Automated batch export of driver performance data
+  - Automatically clicks through all drivers on the list page
+  - Exports detailed race-by-race performance for each driver
   - Includes event-level breakdowns (Qualifying, Sprint, Race)
   - Tracks overtakes, positions gained/lost, bonuses
   - Team field for handling mid-season driver transfers
-  - Filenames include driver name and team (e.g., `2025-11-07-lando-norris-mclaren-performance.csv`)
+  - One combined CSV file with all drivers (e.g., `2025-11-07-all-drivers-performance.csv`)
 - **1.2** - Date-based filenames (YYYY-MM-DD format)
 - **1.1** - Fixed dual-export bug, added automatic tab switching
 - **1.0** - Initial release
