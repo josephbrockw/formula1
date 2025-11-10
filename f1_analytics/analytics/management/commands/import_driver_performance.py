@@ -9,14 +9,14 @@ in the data/{year}/outcomes directory.
 """
 
 import csv
-from datetime import date, datetime
-from decimal import Decimal
-from pathlib import Path
-from django.core.management.base import BaseCommand, CommandError
-from django.conf import settings
+from datetime import date
+from django.core.management.base import BaseCommand
 from django.db import transaction
-from analytics.models import (
-    Season, Team, Driver, Race, DriverRacePerformance, DriverEventScore
+from analytics.models import Driver, DriverRacePerformance, DriverEventScore
+from ._performance_import_utils import (
+    get_season, resolve_csv_file, get_or_create_race,
+    parse_fantasy_price, parse_event_score_fields,
+    extract_event_types, get_or_create_team, parse_totals
 )
 
 
@@ -35,52 +35,21 @@ class Command(BaseCommand):
             help='Season year. Defaults to current year.'
         )
 
-    def find_most_recent_performance_file(self, data_dir):
-        """Find the most recent performance CSV file"""
-        if not data_dir.exists():
-            return None
-        
-        pattern = '*-all-drivers-performance.csv'
-        matching_files = list(data_dir.glob(pattern))
-        
-        if not matching_files:
-            return None
-        
-        # Sort by filename (starts with date)
-        matching_files.sort(reverse=True)
-        return matching_files[0]
-
     def handle(self, *args, **options):
         # Determine year
         year = options.get('year') or date.today().year
         
-        # Get or validate season
-        try:
-            season = Season.objects.get(year=year)
-            self.stdout.write(f"Found season: {season}")
-        except Season.DoesNotExist:
-            raise CommandError(
-                f'Season {year} not found. Please create it first or run import_fantasy_prices.'
-            )
+        # Get season
+        season = get_season(year)
+        self.stdout.write(f"Found season: {season}")
         
-        # Determine file to import
-        if options.get('file'):
-            csv_file = Path(options['file'])
-            if not csv_file.exists():
-                raise CommandError(f'File not found: {csv_file}')
-        else:
-            # Find most recent file
-            base_dir = Path(settings.BASE_DIR)
-            data_dir = base_dir / 'data' / str(year) / 'outcomes'
-            csv_file = self.find_most_recent_performance_file(data_dir)
-            
-            if not csv_file:
-                raise CommandError(
-                    f'No performance files found in {data_dir}. '
-                    'Please export data first using the Chrome extension.'
-                )
-            
-            self.stdout.write(f"Found performance file: {csv_file.name}")
+        # Resolve CSV file
+        csv_file = resolve_csv_file(
+            options, 
+            year, 
+            '*-all-drivers-performance.csv'
+        )
+        self.stdout.write(f"Found performance file: {csv_file.name}")
         
         # Import the data
         stats = self.import_performance_data(csv_file, season)
@@ -101,7 +70,6 @@ class Command(BaseCommand):
         
         # Track races we've seen to assign round numbers
         race_order = {}
-        current_round = 1
         
         with open(csv_file, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
@@ -141,35 +109,24 @@ class Command(BaseCommand):
                 )
                 
                 # Get or create team
-                team, _ = Team.objects.get_or_create(
-                    name=data['team_name'],
-                    defaults={'short_name': data['team_name'][:3].upper()}
-                )
+                team, _ = get_or_create_team(data['team_name'])
                 
                 # Get or create race
-                if race_name not in race_order:
-                    race_order[race_name] = current_round
-                    current_round += 1
-                
-                race, created = Race.objects.get_or_create(
-                    season=season,
-                    name=race_name,
-                    defaults={'round_number': race_order[race_name]}
-                )
-                
+                race, created = get_or_create_race(season, race_name, race_order)
                 if created:
                     races_created += 1
                 
                 # Parse driver value
-                price_str = data['driver_value'].replace('$', '').replace('M', '')
-                fantasy_price = Decimal(price_str)
+                fantasy_price = parse_fantasy_price(data['driver_value'])
                 
                 # Parse totals
-                race_total = int(data['race_total']) if data['race_total'] else 0
-                season_total = int(data['season_total']) if data['season_total'] else 0
+                race_total, season_total = parse_totals(
+                    data['race_total'], 
+                    data['season_total']
+                )
                 
                 # Determine which events this driver participated in
-                event_types = set(row['Event Type'] for row in data['rows'])
+                event_types = extract_event_types(data['rows'])
                 
                 # Create or update DriverRacePerformance
                 performance, perf_created = DriverRacePerformance.objects.update_or_create(
@@ -194,17 +151,13 @@ class Command(BaseCommand):
                 
                 # Create event scores
                 for row in data['rows']:
-                    points = int(row['Points']) if row['Points'] else 0
-                    position = int(row['Position']) if row['Position'] else None
-                    frequency = int(row['Frequency']) if row['Frequency'] else None
+                    score_fields = parse_event_score_fields(row)
                     
                     DriverEventScore.objects.create(
                         performance=performance,
                         event_type=row['Event Type'],
                         scoring_item=row['Scoring Item'],
-                        points=points,
-                        position=position,
-                        frequency=frequency
+                        **score_fields
                     )
                     scores_created += 1
                 
