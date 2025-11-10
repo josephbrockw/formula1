@@ -3,7 +3,8 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.db.models import F
 from .models import (
     User, Season, Team, Driver, DriverSnapshot, ConstructorSnapshot, CurrentLineup,
-    Race, DriverRacePerformance, DriverEventScore,
+    Circuit, Corner, MarshalLight, MarshalSector, Race, Session,
+    DriverRacePerformance, DriverEventScore,
     ConstructorRacePerformance, ConstructorEventScore,
 )
 
@@ -117,19 +118,211 @@ class CurrentLineupAdmin(admin.ModelAdmin):
     total_budget_display.short_description = 'Total Budget'
 
 
-@admin.register(Race)
-class RaceAdmin(admin.ModelAdmin):
-    list_display = ['name', 'season', 'round_number', 'race_date', 'country']
-    list_filter = ['season', 'country']
-    search_fields = ['name', 'circuit_name', 'country']
-    ordering = ['season', 'round_number']
+# Circuit-related inlines
+class CornerInline(admin.TabularInline):
+    """Inline display of corners within a circuit"""
+    model = Corner
+    extra = 0
+    fields = ['number', 'letter', 'x', 'y', 'angle', 'distance']
+    readonly_fields = ['number', 'letter', 'x', 'y', 'angle', 'distance']
+    can_delete = False
+    ordering = ['number', 'letter']
+    
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+class MarshalLightInline(admin.TabularInline):
+    """Inline display of marshal lights within a circuit"""
+    model = MarshalLight
+    extra = 0
+    fields = ['number', 'letter', 'distance', 'angle']
+    readonly_fields = ['number', 'letter', 'distance', 'angle']
+    can_delete = False
+    ordering = ['number', 'letter']
+    
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+class MarshalSectorInline(admin.TabularInline):
+    """Inline display of marshal sectors within a circuit"""
+    model = MarshalSector
+    extra = 0
+    fields = ['number', 'letter', 'distance', 'angle']
+    readonly_fields = ['number', 'letter', 'distance', 'angle']
+    can_delete = False
+    ordering = ['number', 'letter']
+    
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Circuit)
+class CircuitAdmin(admin.ModelAdmin):
+    list_display = ['name', 'rotation', 'corner_count', 'race_count', 'created_at']
+    search_fields = ['name']
+    readonly_fields = ['created_at', 'updated_at', 'corner_count', 'light_count', 'sector_count']
+    inlines = [CornerInline, MarshalLightInline, MarshalSectorInline]
     
     fieldsets = (
-        ('Race Info', {
+        ('Basic Info', {
+            'fields': ('name', 'rotation')
+        }),
+        ('Statistics', {
+            'fields': ('corner_count', 'light_count', 'sector_count'),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def corner_count(self, obj):
+        return obj.corners.count()
+    corner_count.short_description = 'Corners'
+    
+    def light_count(self, obj):
+        return obj.marshal_lights.count()
+    light_count.short_description = 'Marshal Lights'
+    
+    def sector_count(self, obj):
+        return obj.marshal_sectors.count()
+    sector_count.short_description = 'Marshal Sectors'
+    
+    def race_count(self, obj):
+        return obj.races.count()
+    race_count.short_description = 'Races'
+
+
+@admin.register(Corner)
+class CornerAdmin(admin.ModelAdmin):
+    list_display = ['circuit', 'number', 'letter', 'angle', 'distance', 'x', 'y']
+    list_filter = ['circuit']
+    search_fields = ['circuit__name']
+    ordering = ['circuit', 'number', 'letter']
+    
+    fieldsets = (
+        ('Corner Info', {
+            'fields': ('circuit', 'number', 'letter')
+        }),
+        ('Position', {
+            'fields': ('x', 'y', 'distance')
+        }),
+        ('Geometry', {
+            'fields': ('angle',)
+        }),
+    )
+
+
+@admin.register(MarshalLight)
+class MarshalLightAdmin(admin.ModelAdmin):
+    list_display = ['circuit', 'number', 'letter', 'distance', 'angle']
+    list_filter = ['circuit']
+    search_fields = ['circuit__name']
+    ordering = ['circuit', 'number', 'letter']
+    
+    fieldsets = (
+        ('Light Info', {
+            'fields': ('circuit', 'number', 'letter')
+        }),
+        ('Position', {
+            'fields': ('x', 'y', 'distance', 'angle')
+        }),
+    )
+
+
+@admin.register(MarshalSector)
+class MarshalSectorAdmin(admin.ModelAdmin):
+    list_display = ['circuit', 'number', 'letter', 'distance', 'angle']
+    list_filter = ['circuit']
+    search_fields = ['circuit__name']
+    ordering = ['circuit', 'number', 'letter']
+    
+    fieldsets = (
+        ('Sector Info', {
+            'fields': ('circuit', 'number', 'letter')
+        }),
+        ('Position', {
+            'fields': ('x', 'y', 'distance', 'angle')
+        }),
+    )
+
+
+@admin.register(Session)
+class SessionAdmin(admin.ModelAdmin):
+    list_display = [
+        'race', 'session_number', 'session_type', 'session_date_utc', 
+        'get_season', 'get_round'
+    ]
+    list_filter = ['session_type', 'race__season', 'race__event_format']
+    search_fields = ['race__name', 'session_type']
+    ordering = ['race__season', 'race__round_number', 'session_number']
+    readonly_fields = ['created_at', 'updated_at']
+    date_hierarchy = 'session_date_utc'
+    
+    fieldsets = (
+        ('Session Info', {
+            'fields': ('race', 'session_number', 'session_type')
+        }),
+        ('Timing', {
+            'fields': ('session_date_utc', 'session_date_local')
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def get_season(self, obj):
+        return obj.race.season.year
+    get_season.short_description = 'Season'
+    get_season.admin_order_field = 'race__season__year'
+    
+    def get_round(self, obj):
+        return obj.race.round_number
+    get_round.short_description = 'Round'
+    get_round.admin_order_field = 'race__round_number'
+
+
+class SessionInline(admin.TabularInline):
+    """Inline display of sessions within a race"""
+    model = Session
+    extra = 0
+    fields = ['session_number', 'session_type', 'session_date_utc', 'session_date_local']
+    readonly_fields = ['session_number', 'session_type', 'session_date_utc', 'session_date_local']
+    can_delete = False
+    ordering = ['session_number']
+    
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Race)
+class RaceAdmin(admin.ModelAdmin):
+    list_display = [
+        'round_number', 'name', 'season', 'location', 'country', 
+        'circuit', 'event_format', 'race_date', 'f1_api_support'
+    ]
+    list_filter = ['season', 'event_format', 'f1_api_support', 'country']
+    search_fields = ['name', 'location', 'country', 'official_event_name', 'circuit__name']
+    ordering = ['season', 'round_number']
+    inlines = [SessionInline]
+    
+    fieldsets = (
+        ('Basic Info', {
             'fields': ('season', 'name', 'round_number')
         }),
         ('Location', {
-            'fields': ('circuit_name', 'country', 'race_date')
+            'fields': ('circuit', 'location', 'country')
+        }),
+        ('Dates', {
+            'fields': ('race_date', 'event_date')
+        }),
+        ('FastF1 Metadata', {
+            'fields': ('official_event_name', 'event_format', 'f1_api_support'),
+            'classes': ('collapse',)
         }),
     )
 

@@ -13,7 +13,7 @@ Data source: FastF1 Python API (https://docs.fastf1.dev/)
 
 from django.db import models
 from .base import Season, Driver, Team
-from .events import Race
+from .events import Circuit, Race
 
 # TODO: Add FastF1 telemetry models here
 # Examples:
