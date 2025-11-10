@@ -19,7 +19,8 @@ A Chrome extension that exports driver and constructor data from the F1 Fantasy 
   - Points by event type
   - Overtakes, positions gained/lost
   - Fastest lap and Driver of the Day bonuses
-  - Filename includes driver name for easy identification
+  - Team tracking (handles mid-season transfers)
+  - Filename includes driver name and team for easy identification
 
 ## Installation
 
@@ -71,7 +72,7 @@ A Chrome extension that exports driver and constructor data from the F1 Fantasy 
 
 3. Click "Export Driver Performance"
 
-4. The CSV file will be downloaded with the driver's name in the filename (e.g., `2025-11-07-lando-norris-performance.csv`)
+4. The CSV file will be downloaded with the driver's name and team in the filename (e.g., `2025-11-07-lando-norris-mclaren-performance.csv`)
 
 ## CSV Format
 
@@ -92,19 +93,21 @@ McLaren,45.00,1199,$32.0M,$0.5M
 ...
 ```
 
-### Driver Performance CSV (e.g., `2025-11-07-lando-norris-performance.csv`)
+### Driver Performance CSV (e.g., `2025-11-07-lando-norris-mclaren-performance.csv`)
 ```csv
-Driver Name,Driver Value,Event Type,Scoring Item,Season Total,Race,Race Total,Frequency,Position,Points
-Lando Norris,$30.4M,qualifying,Qualifying Position,614,Australia,59,,1,10
-Lando Norris,$30.4M,race,Race Position,614,Australia,59,,2,18
-Lando Norris,$30.4M,race,Race Positions Gained,614,Australia,59,5,,5
-Lando Norris,$30.4M,race,Race Overtake Bonus,614,Australia,59,8,,8
-Lando Norris,$30.4M,sprint,Sprint Position,614,China,41,,3,6
-Lando Norris,$30.4M,race,Driver Of The Day,614,China,41,,,10
+Driver Name,Team,Driver Value,Race,Event Type,Scoring Item,Frequency,Position,Points,Race Total,Season Total
+Lando Norris,McLaren,$30.4M,Australia,qualifying,Qualifying Position,,1,10,59,614
+Lando Norris,McLaren,$30.4M,Australia,race,Race Position,,2,18,59,614
+Lando Norris,McLaren,$30.4M,Australia,race,Race Positions Gained,5,,5,59,614
+Lando Norris,McLaren,$30.4M,Australia,race,Race Overtake Bonus,8,,8,59,614
+Lando Norris,McLaren,$30.4M,China,sprint,Sprint Position,,3,6,41,614
+Lando Norris,McLaren,$30.4M,China,race,Driver Of The Day,,,10,41,614
 ...
 ```
 
 **Column Descriptions:**
+- **Driver Name**: Full driver name
+- **Team**: Current team for this performance record (handles mid-season transfers)
 - **Event Type**: Category (`qualifying`, `sprint`, `race`, `weekend`)
 - **Scoring Item**: The specific fantasy scoring action
 - **Frequency**: Count/number for frequency-based items (overtakes, positions gained/lost). Empty if not applicable.
@@ -162,7 +165,8 @@ MIT License - Feel free to modify and distribute
   - NEW: Export detailed race-by-race driver performance data
   - Includes event-level breakdowns (Qualifying, Sprint, Race)
   - Tracks overtakes, positions gained/lost, bonuses
-  - Filenames include driver name (e.g., `2025-11-07-lando-norris-performance.csv`)
+  - Team field for handling mid-season driver transfers
+  - Filenames include driver name and team (e.g., `2025-11-07-lando-norris-mclaren-performance.csv`)
 - **1.2** - Date-based filenames (YYYY-MM-DD format)
 - **1.1** - Fixed dual-export bug, added automatic tab switching
 - **1.0** - Initial release

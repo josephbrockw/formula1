@@ -147,14 +147,18 @@ document.addEventListener('DOMContentLoaded', function() {
           if (!result || !result.data || result.data.length === 0) {
             showStatus('No performance data found. Make sure you are on a driver detail page.', 'error');
           } else {
-            // Use driver name in filename
+            // Use driver name and team in filename
             const driverSlug = result.driverName
               .toLowerCase()
               .replace(/\s+/g, '-')
               .replace(/[^a-z0-9-]/g, '');
-            const filename = `${getDatePrefix()}-${driverSlug}-performance.csv`;
+            const teamSlug = result.teamName
+              .toLowerCase()
+              .replace(/\s+/g, '-')
+              .replace(/[^a-z0-9-]/g, '');
+            const filename = `${getDatePrefix()}-${driverSlug}-${teamSlug}-performance.csv`;
             downloadCSV(result.data, filename);
-            showStatus(`Exported ${result.data.length} performance records for ${result.driverName}!`, 'success');
+            showStatus(`Exported ${result.data.length} performance records for ${result.driverName} (${result.teamName})!`, 'success');
           }
         } else {
           showStatus('No data found', 'error');
@@ -175,6 +179,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (filename.includes('performance')) {
       headers = [
         'Driver Name',
+        'Team',
         'Driver Value',
         'Race',
         'Event Type',
@@ -402,7 +407,32 @@ function extractDriverPerformanceData() {
   
   // Return early if no driver name found
   if (!driverName) {
-    return { driverName: 'Unknown', data: [] };
+    return { driverName: 'Unknown', teamName: 'Unknown', data: [] };
+  }
+  
+  // Get team name from the driver card image
+  let teamName = 'Unknown';
+  const driverImage = document.querySelector('.si-player__card-thumbnail img');
+  if (driverImage && driverImage.src) {
+    const teamMatch = driverImage.src.match(/\/f1\/2025\/([^/]+)\//);
+    if (teamMatch) {
+      const teamSlug = teamMatch[1];
+      const teamMap = {
+        'mclaren': 'McLaren',
+        'redbullracing': 'Red Bull Racing',
+        'mercedes': 'Mercedes',
+        'ferrari': 'Ferrari',
+        'alpine': 'Alpine',
+        'astonmartin': 'Aston Martin',
+        'williams': 'Williams',
+        'haas': 'Haas',
+        'rb': 'RB',
+        'racingbulls': 'RB',
+        'sauber': 'Sauber',
+        'kicksauber': 'Sauber'
+      };
+      teamName = teamMap[teamSlug] || teamSlug;
+    }
   }
   
   // Get driver value
@@ -478,6 +508,7 @@ function extractDriverPerformanceData() {
           
           performanceData.push({
             'Driver Name': driverName,
+            'Team': teamName,
             'Driver Value': driverValue,
             'Race': raceName,
             'Event Type': eventType,
@@ -493,9 +524,10 @@ function extractDriverPerformanceData() {
     }
   });
   
-  // Return object with driver name and data array
+  // Return object with driver name, team name, and data array
   return {
     driverName: driverName,
+    teamName: teamName,
     data: performanceData
   };
 }
