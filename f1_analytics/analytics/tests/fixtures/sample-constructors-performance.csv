@@ -1,0 +1,26 @@
+Constructor Name,Constructor Value,Race,Event Type,Scoring Item,Frequency,Position,Points,Race Total,Season Total
+McLaren,$32.0M,Bahrain,qualifying,Qualifying Position,,1,10,95,1199
+McLaren,$32.0M,Bahrain,race,Race Position,,2,18,95,1199
+McLaren,$32.0M,Bahrain,race,Race Positions Gained,3,,3,95,1199
+McLaren,$32.0M,Bahrain,race,Pitstop Bonus,2,,2,95,1199
+McLaren,$32.0M,Bahrain,race,Beat Rival,,,10,95,1199
+McLaren,$32.0M,Bahrain,race,Qualifying Streak Bonus,,,10,95,1199
+McLaren,$32.0M,Bahrain,race,Finishing Streak Bonus,,,20,95,1199
+McLaren,$32.0M,Bahrain,race,Season Dominant Bonus,,,22,95,1199
+Red Bull Racing,$30.8M,Bahrain,qualifying,Qualifying Position,,2,9,82,1156
+Red Bull Racing,$30.8M,Bahrain,race,Race Position,,1,25,82,1156
+Red Bull Racing,$30.8M,Bahrain,race,Fastest Lap,,,10,82,1156
+Red Bull Racing,$30.8M,Bahrain,race,Pitstop Bonus,1,,1,82,1156
+Red Bull Racing,$30.8M,Bahrain,race,Beat Rival,,,10,82,1156
+Red Bull Racing,$30.8M,Bahrain,race,Qualifying Streak Bonus,,,10,82,1156
+Red Bull Racing,$30.8M,Bahrain,race,Finishing Streak Bonus,,,20,82,1156
+Ferrari,$31.5M,Bahrain,qualifying,Qualifying Position,,3,8,75,1134
+Ferrari,$31.5M,Bahrain,race,Race Position,,3,15,75,1134
+Ferrari,$31.5M,Bahrain,race,Race Positions Gained,0,,0,75,1134
+Ferrari,$31.5M,Bahrain,race,Pitstop Bonus,2,,2,75,1134
+Ferrari,$31.5M,Bahrain,race,Qualifying Streak Bonus,,,10,75,1134
+Ferrari,$31.5M,Bahrain,race,Finishing Streak Bonus,,,20,75,1134
+Ferrari,$31.5M,Bahrain,race,Season Dominant Bonus,,,20,75,1134
+McLaren,$32.0M,Saudi Arabia,qualifying,Qualifying Position,,1,10,88,1287
+McLaren,$32.0M,Saudi Arabia,race,Race Position,,1,25,88,1287
+McLaren,$32.0M,Saudi Arabia,race,Fastest Lap,,,10,88,1287

@@ -148,7 +148,10 @@ def parse_event_score_fields(row):
             'frequency': int or None
         }
     """
-    points = int(row['Points']) if row['Points'] else 0
+    # Handle unicode minus sign (−) that might appear in CSV exports
+    points_str = row['Points'].replace('−', '-') if row['Points'] else ''
+    points = int(points_str) if points_str else 0
+    
     position = int(row['Position']) if row['Position'] else None
     frequency = int(row['Frequency']) if row['Frequency'] else None
     
