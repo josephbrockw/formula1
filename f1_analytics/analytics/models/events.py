@@ -418,3 +418,134 @@ class Session(models.Model):
             self.TYPE_SPRINT,
             self.TYPE_RACE
         ]
+
+
+class SessionWeather(models.Model):
+    """
+    Weather conditions for a session.
+    
+    Stores weather data from FastF1 (primary) or Open-Meteo (fallback).
+    Weather can significantly impact lap times, tire strategy, and race outcomes.
+    
+    FastF1 provides:
+    - Air temperature (°C)
+    - Track temperature (°C)
+    - Humidity (%)
+    - Wind speed (m/s)
+    - Wind direction (degrees)
+    - Rainfall (boolean)
+    - Pressure (mbar)
+    
+    Data sources:
+    1. FastF1 Session.weather_data (preferred)
+    2. Open-Meteo API (fallback for missing data)
+    """
+    
+    session = models.OneToOneField(
+        Session,
+        on_delete=models.CASCADE,
+        related_name='weather',
+        help_text="The session this weather data belongs to"
+    )
+    
+    # Temperature measurements
+    air_temperature = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Air temperature in Celsius"
+    )
+    
+    track_temperature = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Track surface temperature in Celsius (from FastF1 only)"
+    )
+    
+    # Atmospheric conditions
+    humidity = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Relative humidity percentage (0-100)"
+    )
+    
+    pressure = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Atmospheric pressure in millibars (mbar)"
+    )
+    
+    # Wind conditions
+    wind_speed = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Wind speed in meters per second (m/s)"
+    )
+    
+    wind_direction = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Wind direction in degrees (0-360, where 0/360=North, 90=East, 180=South, 270=West)"
+    )
+    
+    # Precipitation
+    rainfall = models.BooleanField(
+        default=False,
+        help_text="Whether it rained during the session"
+    )
+    
+    # Data source tracking
+    data_source = models.CharField(
+        max_length=50,
+        default='fastf1',
+        help_text="Source of weather data (fastf1, open-meteo, manual)"
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['session__race__season', 'session__race__round_number', 'session__session_number']
+        verbose_name = 'Session Weather'
+        verbose_name_plural = 'Session Weather'
+        indexes = [
+            models.Index(fields=['rainfall']),
+            models.Index(fields=['air_temperature']),
+        ]
+    
+    def __str__(self):
+        temp_str = f"{self.air_temperature}°C" if self.air_temperature else "N/A"
+        rain_str = " (Rain)" if self.rainfall else ""
+        return f"{self.session} - {temp_str}{rain_str}"
+    
+    @property
+    def weather_summary(self):
+        """Human-readable weather summary"""
+        parts = []
+        
+        if self.air_temperature is not None:
+            parts.append(f"Air: {self.air_temperature:.1f}°C")
+        
+        if self.track_temperature is not None:
+            parts.append(f"Track: {self.track_temperature:.1f}°C")
+        
+        if self.humidity is not None:
+            parts.append(f"Humidity: {self.humidity:.0f}%")
+        
+        if self.wind_speed is not None:
+            parts.append(f"Wind: {self.wind_speed:.1f} m/s")
+        
+        if self.rainfall:
+            parts.append("RAIN")
+        
+        return ", ".join(parts) if parts else "No weather data"
+    
+    @property
+    def is_wet(self):
+        """Check if session had wet conditions"""
+        return self.rainfall
+    
+    @property
+    def is_hot(self):
+        """Check if session had hot conditions (air temp > 30°C)"""
+        return self.air_temperature is not None and self.air_temperature > 30

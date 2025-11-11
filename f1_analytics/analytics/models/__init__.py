@@ -6,9 +6,9 @@ Existing code can still use: from analytics.models import Season, Driver, etc.
 
 Model organization:
 - base.py: Core entities (Season, Driver, Team, User, CurrentLineup)
-- events.py: Circuits, races, sessions (Circuit, Corner, MarshalLight, MarshalSector, Race, Session)
+- events.py: Circuits, races, sessions, weather (Circuit, Corner, MarshalLight, MarshalSector, Race, Session, SessionWeather)
 - fantasy.py: F1 Fantasy game data from CSV imports (Snapshots, Performance, Scores)
-- telemetry.py: FastF1 API data (Laps, Telemetry, Weather, PitStops) - to be implemented
+- telemetry.py: FastF1 API data (Laps, Telemetry, PitStops) - to be implemented
 """
 
 # Import base models
@@ -28,6 +28,7 @@ from .events import (
     MarshalSector,
     Race,
     Session,
+    SessionWeather,
 )
 
 # Import fantasy models
@@ -58,6 +59,7 @@ __all__ = [
     'MarshalSector',
     'Race',
     'Session',
+    'SessionWeather',
     # Fantasy models (fantasy.py)
     'DriverSnapshot',
     'ConstructorSnapshot',

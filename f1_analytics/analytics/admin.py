@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.db.models import F
 from .models import (
     User, Season, Team, Driver, DriverSnapshot, ConstructorSnapshot, CurrentLineup,
-    Circuit, Corner, MarshalLight, MarshalSector, Race, Session,
+    Circuit, Corner, MarshalLight, MarshalSector, Race, Session, SessionWeather,
     DriverRacePerformance, DriverEventScore,
     ConstructorRacePerformance, ConstructorEventScore,
 )
@@ -250,17 +250,33 @@ class MarshalSectorAdmin(admin.ModelAdmin):
     )
 
 
+class SessionWeatherInline(admin.StackedInline):
+    """Inline display of weather data within a session"""
+    model = SessionWeather
+    extra = 0
+    fields = [
+        'air_temperature', 'track_temperature', 'humidity', 'pressure',
+        'wind_speed', 'wind_direction', 'rainfall', 'data_source'
+    ]
+    readonly_fields = fields
+    can_delete = False
+    
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(Session)
 class SessionAdmin(admin.ModelAdmin):
     list_display = [
         'race', 'session_number', 'session_type', 'session_date_utc', 
-        'get_season', 'get_round'
+        'get_season', 'get_round', 'has_weather'
     ]
     list_filter = ['session_type', 'race__season', 'race__event_format']
     search_fields = ['race__name', 'session_type']
     ordering = ['race__season', 'race__round_number', 'session_number']
     readonly_fields = ['created_at', 'updated_at']
     date_hierarchy = 'session_date_utc'
+    inlines = [SessionWeatherInline]
     
     fieldsets = (
         ('Session Info', {
@@ -284,6 +300,52 @@ class SessionAdmin(admin.ModelAdmin):
         return obj.race.round_number
     get_round.short_description = 'Round'
     get_round.admin_order_field = 'race__round_number'
+    
+    def has_weather(self, obj):
+        return hasattr(obj, 'weather')
+    has_weather.short_description = 'Weather'
+    has_weather.boolean = True
+
+
+@admin.register(SessionWeather)
+class SessionWeatherAdmin(admin.ModelAdmin):
+    list_display = [
+        'session', 'air_temperature', 'track_temperature', 'humidity',
+        'wind_speed', 'rainfall', 'data_source'
+    ]
+    list_filter = ['rainfall', 'data_source', 'session__race__season']
+    search_fields = ['session__race__name', 'session__session_type']
+    ordering = ['session__race__season', 'session__race__round_number', 'session__session_number']
+    readonly_fields = ['created_at', 'updated_at', 'weather_summary']
+    
+    fieldsets = (
+        ('Session', {
+            'fields': ('session',)
+        }),
+        ('Temperature', {
+            'fields': ('air_temperature', 'track_temperature')
+        }),
+        ('Atmospheric', {
+            'fields': ('humidity', 'pressure')
+        }),
+        ('Wind', {
+            'fields': ('wind_speed', 'wind_direction')
+        }),
+        ('Precipitation', {
+            'fields': ('rainfall',)
+        }),
+        ('Summary', {
+            'fields': ('weather_summary',)
+        }),
+        ('Metadata', {
+            'fields': ('data_source', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def weather_summary(self, obj):
+        return obj.weather_summary
+    weather_summary.short_description = 'Weather Summary'
 
 
 class SessionInline(admin.TabularInline):
