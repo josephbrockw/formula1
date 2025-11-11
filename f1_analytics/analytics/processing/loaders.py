@@ -6,7 +6,7 @@ with automatic caching via Prefect to avoid duplicate loads.
 """
 
 from datetime import timedelta
-from typing import Any
+from typing import Any, Optional
 import fastf1
 from prefect import task, get_run_logger
 from prefect.cache_policies import INPUTS
@@ -30,6 +30,11 @@ def session_cache_key_fn(context, parameters):
     return generate_session_cache_key(year, round_num, session_type)
 
 
+class NonRetryableError(Exception):
+    """Exception for errors that should not be retried (data not available, testing events, etc.)"""
+    pass
+
+
 @task(
     name="Load FastF1 Session",
     cache_policy=INPUTS,
@@ -41,7 +46,8 @@ def load_fastf1_session(
     year: int,
     round_num: int,
     session_type: str,
-    session_id: int
+    session_id: int,
+    event_name: Optional[str] = None
 ) -> Any:
     """
     Load a FastF1 session with automatic caching and rate limit tracking.
@@ -49,31 +55,47 @@ def load_fastf1_session(
     This is the PRIMARY task that makes FastF1 API calls. Prefect automatically:
     - Caches the loaded session for 1 hour
     - Reuses cached session if called again with same parameters
-    - Retries on failure (3 times with 60s delay)
+    - Retries on transient failures (network, timeouts) but NOT on data unavailable
     - Logs all attempts and outcomes
+    
+    Testing events are loaded by event name instead of round number.
+    
+    Non-retryable errors (data not available):
+    - Session not found
+    - Invalid identifiers
     
     Args:
         year: Season year
-        round_num: Race round number
+        round_num: Race round number (ignored for testing events)
         session_type: Django session type (e.g., 'Practice 1', 'Race')
         session_id: Django Session ID (for tracking)
+        event_name: Event name for testing events (e.g., 'Pre-Season Testing')
     
     Returns:
         Loaded FastF1 Session object
+        
+    Raises:
+        NonRetryableError: For fundamental data availability issues
+        RateLimitExceededError: When rate limit is hit
+        Exception: For other transient errors (will retry)
     """
     logger = get_run_logger()
     
     # Convert Django session type to FastF1 identifier
     fastf1_identifier = get_fastf1_session_identifier(session_type)
     
+    # Use event name for testing events, round number for regular events
+    event_identifier = event_name if event_name else round_num
+    
     logger.info(
-        f"Loading FastF1 session: {year} Round {round_num} {session_type} "
+        f"Loading FastF1 session: {year} {event_identifier} {session_type} "
         f"(identifier: {fastf1_identifier})"
     )
     
     try:
         # This is the actual API call that counts against rate limit
-        f1_session = fastf1.get_session(year, round_num, fastf1_identifier)
+        # Use event_name for testing events, round_num for regular races
+        f1_session = fastf1.get_session(year, event_identifier, fastf1_identifier)
         
         # Load session data (this downloads telemetry)
         logger.info(f"Calling session.load() - this may take 30-60 seconds...")
@@ -82,16 +104,33 @@ def load_fastf1_session(
         # Record API call for rate limit tracking
         record_api_call(session_id)
         
-        logger.info(f"✅ Successfully loaded {year} R{round_num} {session_type}")
+        logger.info(f"✅ Successfully loaded {year} {event_identifier} {session_type}")
         
         return f1_session
         
     except fastf1.req.RateLimitExceededError as e:
         logger.error(f"❌ Rate limit exceeded: {e}")
         raise
-        
+    
     except Exception as e:
-        logger.error(f"❌ Failed to load session: {e}")
+        error_msg = str(e).lower()
+        
+        # Check for non-retryable errors (data not available)
+        non_retryable_keywords = [
+            'not found',
+            'does not exist',
+            'no data available',
+            'invalid round',
+            'invalid event',
+        ]
+        
+        if any(keyword in error_msg for keyword in non_retryable_keywords):
+            logger.warning(f"⚠️ Data not available (will not retry): {e}")
+            # Raise as NonRetryableError to prevent retries
+            raise NonRetryableError(f"Data not available for {year} {event_identifier} {session_type}: {e}") from e
+        
+        # For other errors, log and re-raise (Prefect will retry)
+        logger.error(f"❌ Failed to load session (will retry): {e}")
         raise
 
 

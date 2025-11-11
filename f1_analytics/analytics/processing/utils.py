@@ -73,6 +73,8 @@ def get_sessions_without_data(
                 'round_number': session.race.round_number,
                 'year': year,
                 'has_data': has_data,
+                'event_format': session.race.event_format,
+                'event_name': session.race.name,  # For testing events
             })
     
     logger.info(f"Found {len(result)} sessions needing {data_type} data")
