@@ -43,14 +43,22 @@ class Command(BaseCommand):
             type=int,
             help='Import only a specific event/round number (useful for testing)'
         )
+        parser.add_argument(
+            '--force',
+            action='store_true',
+            help='Force re-import of all data, even if it already exists in the database'
+        )
 
     def handle(self, *args, **options):
         year = options['year']
         with_circuits = options.get('with_circuits', False)
         specific_event = options.get('event')
+        force = options.get('force', False)
         
         self.stdout.write(self.style.SUCCESS(f'\n{"="*80}'))
         self.stdout.write(self.style.SUCCESS(f'F1 Schedule Import - {year} Season'))
+        if force:
+            self.stdout.write(self.style.WARNING('FORCE MODE: Re-importing all data'))
         self.stdout.write(self.style.SUCCESS(f'{"="*80}\n'))
         
         try:
@@ -75,16 +83,19 @@ class Command(BaseCommand):
             stats = {
                 'races_created': 0,
                 'races_updated': 0,
+                'races_skipped': 0,
                 'sessions_created': 0,
+                'sessions_skipped': 0,
                 'circuits_created': 0,
                 'circuits_updated': 0,
+                'circuits_skipped': 0,
             }
             
             # Import each event
             for idx, event_row in schedule.iterrows():
                 self.stdout.write(f'\nProcessing Round {event_row["RoundNumber"]}: {event_row["EventName"]}...')
                 
-                race_stats = self.import_race(season, event_row, with_circuits)
+                race_stats = self.import_race(season, event_row, with_circuits, force)
                 
                 # Update statistics
                 for key, value in race_stats.items():
@@ -98,10 +109,13 @@ class Command(BaseCommand):
             self.stdout.write(f'\nSummary:')
             self.stdout.write(f'  Races created:    {stats["races_created"]}')
             self.stdout.write(f'  Races updated:    {stats["races_updated"]}')
+            self.stdout.write(f'  Races skipped:    {stats["races_skipped"]}')
             self.stdout.write(f'  Sessions created: {stats["sessions_created"]}')
+            self.stdout.write(f'  Sessions skipped: {stats["sessions_skipped"]}')
             if with_circuits:
                 self.stdout.write(f'  Circuits created: {stats["circuits_created"]}')
                 self.stdout.write(f'  Circuits updated: {stats["circuits_updated"]}')
+                self.stdout.write(f'  Circuits skipped: {stats["circuits_skipped"]}')
             self.stdout.write('')
             
         except Exception as e:
@@ -112,6 +126,17 @@ class Command(BaseCommand):
             traceback.print_exc()
             raise
 
+    def _circuit_has_complete_geometry(self, circuit):
+        """
+        Check if circuit has complete geometry data (corners, lights, and sectors).
+        Returns True only if ALL three types exist.
+        """
+        has_corners = circuit.corners.exists()
+        has_lights = circuit.marshal_lights.exists()
+        has_sectors = circuit.marshal_sectors.exists()
+        
+        return has_corners and has_lights and has_sectors
+    
     def import_season(self, year):
         """Get or create Season for the given year."""
         season, created = Season.objects.get_or_create(
@@ -129,14 +154,17 @@ class Command(BaseCommand):
         
         return season
     
-    def import_race(self, season, event_row, with_circuits):
+    def import_race(self, season, event_row, with_circuits, force=False):
         """Import a single race event with all sessions."""
         stats = {
             'races_created': 0,
             'races_updated': 0,
+            'races_skipped': 0,
             'sessions_created': 0,
+            'sessions_skipped': 0,
             'circuits_created': 0,
             'circuits_updated': 0,
+            'circuits_skipped': 0,
         }
         
         # Get or create race
@@ -147,6 +175,42 @@ class Command(BaseCommand):
                 'name': event_row['EventName'],
             }
         )
+        
+        # Check if we should skip this race
+        if not force and not created:
+            # Count expected sessions from the schedule
+            expected_sessions = sum([
+                1 for i in range(1, 6) 
+                if event_row.get(f'Session{i}') and not pd.isna(event_row.get(f'Session{i}'))
+            ])
+            
+            # Check if sessions already exist AND we have the expected count
+            existing_sessions = race.sessions.count()
+            if existing_sessions > 0 and existing_sessions == expected_sessions:
+                stats['races_skipped'] += 1
+                stats['sessions_skipped'] += existing_sessions
+                self.stdout.write(f'  ⊙ Skipped race (already has {existing_sessions} sessions): {race.name}')
+                
+                # Check circuit data if requested
+                if with_circuits:
+                    # Check if circuit exists and has ALL geometry data
+                    if race.circuit and self._circuit_has_complete_geometry(race.circuit):
+                        stats['circuits_skipped'] += 1
+                        self.stdout.write(f'    ⊙ Skipped circuit (already has geometry data)')
+                    else:
+                        # Import circuit data if missing or circuit was deleted
+                        if not race.circuit:
+                            self.stdout.write(f'    ⚠ Circuit missing, importing...')
+                        else:
+                            self.stdout.write(f'    ⚠ Circuit exists but missing/incomplete geometry data, importing...')
+                        circuit_stats = self.import_circuit_for_race(season.year, race, event_row, force)
+                        for key, value in circuit_stats.items():
+                            stats[key] += value
+                
+                return stats
+            elif existing_sessions > 0 and existing_sessions != expected_sessions:
+                # Partial session data - need to re-import
+                self.stdout.write(f'  ⚠ Race has {existing_sessions} sessions but expected {expected_sessions}, re-importing...')
         
         # Update race fields
         race.name = event_row['EventName']
@@ -171,19 +235,19 @@ class Command(BaseCommand):
             self.stdout.write(f'  ✓ Updated race: {race.name}')
         
         # Import sessions
-        session_count = self.import_sessions(race, event_row)
+        session_count = self.import_sessions(race, event_row, force)
         stats['sessions_created'] += session_count
         self.stdout.write(f'    → Created {session_count} sessions')
         
         # Import circuit data if requested
         if with_circuits:
-            circuit_stats = self.import_circuit_for_race(season.year, race, event_row)
-            stats['circuits_created'] += circuit_stats.get('circuits_created', 0)
-            stats['circuits_updated'] += circuit_stats.get('circuits_updated', 0)
+            circuit_stats = self.import_circuit_for_race(season.year, race, event_row, force)
+            for key, value in circuit_stats.items():
+                stats[key] += value
         
         return stats
     
-    def import_sessions(self, race, event_row):
+    def import_sessions(self, race, event_row, force=False):
         """Import all sessions for a race."""
         sessions_created = 0
         
@@ -229,50 +293,60 @@ class Command(BaseCommand):
         
         return sessions_created
     
-    def import_circuit_for_race(self, year, race, event_row):
+    def import_circuit_for_race(self, year, race, event_row, force=False):
         """Import circuit data by loading a FastF1 session."""
-        stats = {'circuits_created': 0, 'circuits_updated': 0}
+        stats = {'circuits_created': 0, 'circuits_updated': 0, 'circuits_skipped': 0}
         
         try:
-            self.stdout.write(f'    Loading circuit data...')
+            # Get or create circuit first (without loading session data)
+            circuit_name = event_row.get('Location', '') + ' Circuit'
+            circuit, created = Circuit.objects.get_or_create(name=circuit_name)
             
-            # Load race session to get circuit info
+            # Link circuit to race if not already linked
+            if not race.circuit:
+                race.circuit = circuit
+                race.save()
+            
+            # Check if circuit already has complete geometry data
+            if not force and self._circuit_has_complete_geometry(circuit):
+                stats['circuits_skipped'] += 1
+                corner_count = circuit.corners.count()
+                self.stdout.write(f'    ⊙ Skipped circuit (already has complete geometry: {corner_count} corners, etc.)')
+                return stats
+            
+            # Only load FastF1 session data if we need it
+            self.stdout.write(f'    Loading circuit data from FastF1...')
+            
+            # Load race session to get circuit info (THIS IS THE EXPENSIVE PART)
             f1_session = fastf1.get_session(year, int(race.round_number), 'R')
             f1_session.load()
             
             circuit_info = f1_session.get_circuit_info()
             
-            # Create or update circuit
-            circuit_name = event_row.get('Location', '') + ' Circuit'
-            circuit, created = Circuit.objects.get_or_create(
-                name=circuit_name,
-                defaults={'rotation': circuit_info.rotation if hasattr(circuit_info, 'rotation') else None}
-            )
-            
-            if not created and hasattr(circuit_info, 'rotation'):
+            # Update circuit with rotation data
+            if hasattr(circuit_info, 'rotation'):
                 circuit.rotation = circuit_info.rotation
                 circuit.save()
-                stats['circuits_updated'] += 1
-            else:
-                stats['circuits_created'] += 1
             
-            # Link circuit to race
-            race.circuit = circuit
-            race.save()
+            if created:
+                stats['circuits_created'] += 1
+            else:
+                stats['circuits_updated'] += 1
             
             # Import corners
             if hasattr(circuit_info, 'corners') and circuit_info.corners is not None:
                 self.import_corners(circuit, circuit_info.corners)
+                self.stdout.write(f'      ✓ Imported {circuit_info.corners.shape[0]} corners')
             
             # Import marshal lights
             if hasattr(circuit_info, 'marshal_lights') and circuit_info.marshal_lights is not None:
                 self.import_marshal_lights(circuit, circuit_info.marshal_lights)
+                self.stdout.write(f'      ✓ Imported {circuit_info.marshal_lights.shape[0]} marshal lights')
             
             # Import marshal sectors
             if hasattr(circuit_info, 'marshal_sectors') and circuit_info.marshal_sectors is not None:
                 self.import_marshal_sectors(circuit, circuit_info.marshal_sectors)
-            
-            self.stdout.write(f'      ✓ Circuit data imported')
+                self.stdout.write(f'      ✓ Imported {circuit_info.marshal_sectors.shape[0]} marshal sectors')
             
         except Exception as e:
             self.stdout.write(self.style.WARNING(f'      ⚠ Could not load circuit data: {e}'))
