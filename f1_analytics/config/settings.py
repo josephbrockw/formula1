@@ -123,3 +123,10 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = 'analytics.User'
+
+
+# FastF1 API Task Configuration
+# These control retry behavior for Prefect tasks that call FastF1 API
+# Tests override these at runtime using task.with_options() for faster execution
+FASTF1_TASK_RETRIES = 3  # Number of retry attempts for transient failures
+FASTF1_TASK_RETRY_DELAY = 60  # Seconds to wait between retry attempts

@@ -13,8 +13,8 @@ Every test that calls load_fastf1_session MUST mock fastf1.get_session.
 """
 
 from unittest import mock
-from datetime import datetime
 from django.test import TestCase
+from datetime import datetime
 from django.utils import timezone
 import fastf1
 from analytics.models import Season, Race, Session, SessionLoadStatus
@@ -24,6 +24,7 @@ from analytics.processing.loaders import (
     get_session_info,
     session_cache_key_fn,
 )
+from analytics.tests.processing.test_base import FastPrefectTasksMixin
 
 
 class MockFastF1Session:
@@ -77,11 +78,23 @@ class SessionCacheKeyTests(TestCase):
         self.assertNotEqual(key1, key2)
 
 
-class LoadFastF1SessionTests(TestCase):
+class NonRetryableErrorTests(TestCase):
+    """Tests for NonRetryableError exception"""
+    
+    def test_exception_exists(self):
+        """Should be able to import and raise NonRetryableError"""
+        from analytics.processing.loaders import NonRetryableError
+        
+        with self.assertRaises(NonRetryableError):
+            raise NonRetryableError("Test error")
+
+
+class LoadFastF1SessionTests(FastPrefectTasksMixin, TestCase):
     """Tests for load_fastf1_session task"""
     
     def setUp(self):
         """Create test data"""
+        super().setUp()
         self.season = Season.objects.create(year=2025, name='2025 Season')
         self.race = Race.objects.create(
             season=self.season,
@@ -178,6 +191,99 @@ class LoadFastF1SessionTests(TestCase):
                 session_id=self.session.id
             )
         
+        mock_logger.return_value.error.assert_called()
+    
+    @mock.patch('analytics.processing.loaders.get_run_logger')
+    @mock.patch('analytics.processing.loaders.fastf1.get_session')
+    def test_loads_testing_event_by_name(self, mock_get_session, mock_logger):
+        """Should load testing events using event name instead of round number"""
+        mock_f1_session = MockFastF1Session()
+        mock_get_session.return_value = mock_f1_session
+        
+        result = load_fastf1_session.fn(
+            year=2025,
+            round_num=0,
+            session_type='Practice 1',
+            session_id=self.session.id,
+            event_name='Pre-Season Testing'
+        )
+        
+        self.assertIsNotNone(result)
+        # Should call with event name, not round number
+        mock_get_session.assert_called_once_with(2025, 'Pre-Season Testing', 'FP1')
+    
+    @mock.patch('analytics.processing.loaders.get_run_logger')
+    @mock.patch('analytics.processing.loaders.fastf1.get_session')
+    def test_loads_regular_event_by_round_number(self, mock_get_session, mock_logger):
+        """Should load regular events using round number when event_name is None"""
+        mock_f1_session = MockFastF1Session()
+        mock_get_session.return_value = mock_f1_session
+        
+        result = load_fastf1_session.fn(
+            year=2025,
+            round_num=5,
+            session_type='Race',
+            session_id=self.session.id,
+            event_name=None
+        )
+        
+        self.assertIsNotNone(result)
+        # Should call with round number
+        mock_get_session.assert_called_once_with(2025, 5, 'R')
+    
+    @mock.patch('analytics.processing.loaders.get_run_logger')
+    @mock.patch('analytics.processing.loaders.fastf1.get_session')
+    def test_raises_non_retryable_error_for_not_found(self, mock_get_session, mock_logger):
+        """Should raise NonRetryableError for 'not found' errors"""
+        from analytics.processing.loaders import NonRetryableError
+        
+        mock_get_session.side_effect = Exception('Session not found')
+        
+        with self.assertRaises(NonRetryableError):
+            load_fastf1_session.fn(
+                year=2025,
+                round_num=1,
+                session_type='Practice 1',
+                session_id=self.session.id
+            )
+        
+        mock_logger.return_value.warning.assert_called()
+    
+    @mock.patch('analytics.processing.loaders.get_run_logger')
+    @mock.patch('analytics.processing.loaders.fastf1.get_session')
+    def test_raises_non_retryable_error_for_invalid_event(self, mock_get_session, mock_logger):
+        """Should raise NonRetryableError for 'invalid event' errors"""
+        from analytics.processing.loaders import NonRetryableError
+        
+        mock_get_session.side_effect = Exception('Invalid event identifier')
+        
+        with self.assertRaises(NonRetryableError):
+            load_fastf1_session.fn(
+                year=2025,
+                round_num=1,
+                session_type='Practice 1',
+                session_id=self.session.id
+            )
+    
+    @mock.patch('analytics.processing.loaders.get_run_logger')
+    @mock.patch('analytics.processing.loaders.fastf1.get_session')
+    def test_retries_on_connection_error(self, mock_get_session, mock_logger):
+        """Should NOT raise NonRetryableError for connection errors (should retry)"""
+        from analytics.processing.loaders import NonRetryableError
+        
+        mock_get_session.side_effect = Exception('Connection timeout')
+        
+        # Should raise regular Exception, not NonRetryableError
+        with self.assertRaises(Exception) as context:
+            load_fastf1_session.fn(
+                year=2025,
+                round_num=1,
+                session_type='Practice 1',
+                session_id=self.session.id
+            )
+        
+        # Should not be NonRetryableError
+        self.assertNotIsInstance(context.exception, NonRetryableError)
         mock_logger.return_value.error.assert_called()
 
 

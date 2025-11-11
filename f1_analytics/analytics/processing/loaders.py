@@ -8,6 +8,7 @@ with automatic caching via Prefect to avoid duplicate loads.
 from datetime import timedelta
 from typing import Any, Optional
 import fastf1
+from django.conf import settings
 from prefect import task, get_run_logger
 from prefect.cache_policies import INPUTS
 
@@ -39,8 +40,8 @@ class NonRetryableError(Exception):
     name="Load FastF1 Session",
     cache_policy=INPUTS,
     cache_expiration=timedelta(hours=1),
-    retries=3,
-    retry_delay_seconds=60
+    retries=settings.FASTF1_TASK_RETRIES,
+    retry_delay_seconds=settings.FASTF1_TASK_RETRY_DELAY
 )
 def load_fastf1_session(
     year: int,
