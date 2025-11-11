@@ -8,6 +8,7 @@ Model organization:
 - base.py: Core entities (Season, Driver, Team, User, CurrentLineup)
 - events.py: Circuits, races, sessions, weather (Circuit, Corner, MarshalLight, MarshalSector, Race, Session, SessionWeather)
 - fantasy.py: F1 Fantasy game data from CSV imports (Snapshots, Performance, Scores)
+- pipeline.py: Internal pipeline infrastructure (SessionLoadStatus)
 - telemetry.py: FastF1 API data (Laps, Telemetry, PitStops) - to be implemented
 """
 
@@ -29,6 +30,11 @@ from .events import (
     Race,
     Session,
     SessionWeather,
+)
+
+# Import pipeline models
+from .pipeline import (
+    SessionLoadStatus,
 )
 
 # Import fantasy models
@@ -60,6 +66,8 @@ __all__ = [
     'Race',
     'Session',
     'SessionWeather',
+    # Pipeline models (pipeline.py)
+    'SessionLoadStatus',
     # Fantasy models (fantasy.py)
     'DriverSnapshot',
     'ConstructorSnapshot',

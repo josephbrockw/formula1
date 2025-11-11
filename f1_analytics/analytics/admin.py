@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.db.models import F
 from .models import (
     User, Season, Team, Driver, DriverSnapshot, ConstructorSnapshot, CurrentLineup,
-    Circuit, Corner, MarshalLight, MarshalSector, Race, Session, SessionWeather,
+    Circuit, Corner, MarshalLight, MarshalSector, Race, Session, SessionWeather, SessionLoadStatus,
     DriverRacePerformance, DriverEventScore,
     ConstructorRacePerformance, ConstructorEventScore,
 )
@@ -561,3 +561,68 @@ class ConstructorEventScoreAdmin(admin.ModelAdmin):
     get_race.short_description = 'Race'
     get_race.admin_order_field = 'performance__race__name'
 
+
+@admin.register(SessionLoadStatus)
+class SessionLoadStatusAdmin(admin.ModelAdmin):
+    list_display = [
+        'session', 'has_circuit', 'has_weather', 'has_lap_times', 'has_telemetry',
+        'last_api_call', 'api_calls_count', 'get_loaded_types'
+    ]
+    list_filter = [
+        'has_circuit', 'has_weather', 'has_lap_times', 'has_telemetry',
+        'session__race__season', 'session__session_type'
+    ]
+    search_fields = ['session__race__name', 'session__session_type']
+    ordering = ['session__race__season', 'session__race__round_number', 'session__session_number']
+    readonly_fields = [
+        'session', 'circuit_loaded_at', 'weather_loaded_at', 'laps_loaded_at',
+        'telemetry_loaded_at', 'last_api_call', 'api_calls_count',
+        'created_at', 'updated_at', 'get_loaded_types', 'get_missing_types',
+        'prefect_metadata_display'
+    ]
+    
+    fieldsets = (
+        ('Session', {
+            'fields': ('session',)
+        }),
+        ('Data Status', {
+            'fields': (
+                ('has_circuit', 'circuit_loaded_at'),
+                ('has_weather', 'weather_loaded_at'),
+                ('has_lap_times', 'laps_loaded_at'),
+                ('has_telemetry', 'telemetry_loaded_at'),
+            )
+        }),
+        ('Summary', {
+            'fields': ('get_loaded_types', 'get_missing_types')
+        }),
+        ('Rate Limit Tracking', {
+            'fields': ('last_api_call', 'api_calls_count'),
+            'classes': ('collapse',)
+        }),
+        ('Prefect Metadata', {
+            'fields': ('prefect_metadata_display',),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def get_loaded_types(self, obj):
+        types = obj.loaded_data_types
+        return ', '.join(types) if types else 'None'
+    get_loaded_types.short_description = 'Loaded Data'
+    
+    def get_missing_types(self, obj):
+        types = obj.missing_data_types
+        return ', '.join(types) if types else 'All loaded'
+    get_missing_types.short_description = 'Missing Data'
+    
+    def prefect_metadata_display(self, obj):
+        import json
+        if obj.prefect_metadata:
+            return json.dumps(obj.prefect_metadata, indent=2)
+        return 'No metadata'
+    prefect_metadata_display.short_description = 'Prefect Metadata'
