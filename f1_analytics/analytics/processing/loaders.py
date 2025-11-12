@@ -7,13 +7,14 @@ with automatic caching via Prefect to avoid duplicate loads.
 
 from datetime import timedelta
 from typing import Any, Optional
+
 import fastf1
 from django.conf import settings
 from prefect import task, get_run_logger
 from prefect.cache_policies import INPUTS
 
 from .utils import get_fastf1_session_identifier, generate_session_cache_key
-from .rate_limiter import record_api_call
+from .rate_limiter import record_api_call, wait_for_rate_limit
 
 
 def session_cache_key_fn(context, parameters):
@@ -48,7 +49,8 @@ def load_fastf1_session(
     round_num: int,
     session_type: str,
     session_id: int,
-    event_name: Optional[str] = None
+    event_name: Optional[str] = None,
+    force: bool = False  # If True, bypasses Prefect cache
 ) -> Any:
     """
     Load a FastF1 session with automatic caching and rate limit tracking.
@@ -103,6 +105,8 @@ def load_fastf1_session(
         f1_session.load()
         
         # Record API call for rate limit tracking
+        # This tracks function calls, not HTTP requests
+        # (FastF1 makes ~3-5 HTTP requests per session.load())
         record_api_call(session_id)
         
         logger.info(f"✅ Successfully loaded {year} {event_identifier} {session_type}")
@@ -110,8 +114,19 @@ def load_fastf1_session(
         return f1_session
         
     except fastf1.req.RateLimitExceededError as e:
-        logger.error(f"❌ Rate limit exceeded: {e}")
-        raise
+        logger.error(f"❌ Rate limit exceeded by FastF1!")
+        logger.error(f"   Error: {e}")
+        
+        # Use centralized pause function for consistent behavior
+        wait_for_rate_limit()
+        
+        # Retry once after waiting
+        logger.info(f"🔄 Retrying: {year} {event_identifier} {session_type}")
+        f1_session = fastf1.get_session(year, event_identifier, fastf1_identifier)
+        f1_session.load()
+        record_api_call(session_id)
+        
+        return f1_session
     
     except Exception as e:
         error_msg = str(e).lower()

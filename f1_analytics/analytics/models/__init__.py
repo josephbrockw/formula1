@@ -10,6 +10,8 @@ Model organization:
 - fantasy.py: F1 Fantasy game data from CSV imports (Snapshots, Performance, Scores)
 - pipeline.py: Internal pipeline infrastructure (SessionLoadStatus)
 - telemetry.py: FastF1 API data (Laps, Telemetry, PitStops) - to be implemented
+
+Note: api_logs.py was removed - we now use reactive rate limiting instead of tracking HTTP requests
 """
 
 # Import base models

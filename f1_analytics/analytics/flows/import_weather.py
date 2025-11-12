@@ -23,11 +23,6 @@ from datetime import timedelta
 
 # Import processing tasks
 from analytics.processing.loaders import load_fastf1_session
-from analytics.processing.rate_limiter import (
-    check_rate_limit,
-    wait_for_rate_limit,
-    calculate_next_available_time,
-)
 from analytics.processing.utils import (
     get_sessions_without_data,
     mark_data_loaded,
@@ -258,27 +253,14 @@ def import_weather_flow(year: int, force: bool = False) -> Dict:
     
     logger.info(f"Found {len(sessions_to_process)} sessions needing weather data")
     
-    # 2. Check rate limit before starting
-    logger.info("Checking rate limit...")
-    can_proceed = check_rate_limit()
+    # NOTE: Rate limiting is now handled reactively in loaders.py
+    # FastF1 will raise RateLimitExceededError when limit is hit,
+    # and loaders will automatically pause for 1 hour and retry
     
-    if not can_proceed:
-        logger.warning("⚠️ Rate limit exceeded, waiting...")
-        next_time = calculate_next_available_time()
-        wait_for_rate_limit(next_time)
-        logger.info("✅ Rate limit window reset, proceeding...")
-    
-    # 3. Process each session
+    # 2. Process each session
     results = []
     for i, session_info in enumerate(sessions_to_process, 1):
         logger.info(f"\n[{i}/{len(sessions_to_process)}] Processing session...")
-        
-        # Check rate limit periodically (every 10 sessions)
-        if i % 10 == 0:
-            if not check_rate_limit():
-                logger.warning("Rate limit reached, pausing...")
-                next_time = calculate_next_available_time()
-                wait_for_rate_limit(next_time)
         
         # Process session (errors are caught and logged)
         result = process_session_weather(session_info, force)
