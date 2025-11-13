@@ -549,3 +549,142 @@ class SessionWeather(models.Model):
     def is_hot(self):
         """Check if session had hot conditions (air temp > 30°C)"""
         return self.air_temperature is not None and self.air_temperature > 30
+
+
+class SessionResult(models.Model):
+    """
+    Driver's result/classification for a specific session.
+    
+    Stores overall session outcomes from FastF1 session.results including:
+    - Final position and grid position
+    - Race status (Finished, DNF, DNS, etc.)
+    - Points scored (for races/sprints)
+    - Time/gap to winner
+    - Additional metadata
+    
+    This is different from:
+    - Lap: Lap-by-lap granular data
+    - DriverRacePerformance: Fantasy points from CSV imports
+    
+    Data source: FastF1 Session.results DataFrame
+    """
+    
+    session = models.ForeignKey(
+        'Session',
+        on_delete=models.CASCADE,
+        related_name='results',
+        help_text="The session this result belongs to"
+    )
+    
+    driver = models.ForeignKey(
+        'Driver',
+        on_delete=models.CASCADE,
+        related_name='session_results',
+        help_text="The driver"
+    )
+    
+    team = models.ForeignKey(
+        'Team',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='session_results',
+        help_text="Team the driver was racing for in this session"
+    )
+    
+    # Position/Classification
+    position = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Final classified position (1st, 2nd, 3rd, etc.)"
+    )
+    
+    grid_position = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Starting grid position (for races/sprints)"
+    )
+    
+    # Status/Outcome
+    status = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Race/session status (Finished, +1 Lap, DNF, DNS, etc.)"
+    )
+    
+    # Timing
+    time = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Total time or gap to winner (e.g., '1:32:07.986' or '+5.241')"
+    )
+    
+    # Points (for races and sprints)
+    points = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Championship points scored in this session"
+    )
+    
+    # Additional FastF1 fields
+    class_position = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Classification position (may differ from position for penalties)"
+    )
+    
+    # FastF1 identifiers (stored for reference)
+    driver_number = models.CharField(
+        max_length=10,
+        blank=True,
+        help_text="Driver's racing number in this session"
+    )
+    
+    abbreviation = models.CharField(
+        max_length=3,
+        blank=True,
+        help_text="Driver's three-letter abbreviation in this session"
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['session', 'position']
+        unique_together = ['session', 'driver']
+        indexes = [
+            models.Index(fields=['session', 'position']),
+            models.Index(fields=['session', 'driver']),
+            models.Index(fields=['driver', 'session']),
+            models.Index(fields=['position']),
+            models.Index(fields=['points']),
+        ]
+        verbose_name = 'Session Result'
+        verbose_name_plural = 'Session Results'
+    
+    def __str__(self):
+        pos = f"P{self.position}" if self.position else "NC"
+        return f"{self.driver.full_name} - {self.session} ({pos})"
+    
+    @property
+    def is_points_finish(self):
+        """Check if driver scored points"""
+        return self.points is not None and self.points > 0
+    
+    @property
+    def is_podium(self):
+        """Check if driver finished on podium (top 3)"""
+        return self.position is not None and self.position <= 3
+    
+    @property
+    def is_dnf(self):
+        """Check if driver did not finish"""
+        return 'DNF' in self.status or 'Retired' in self.status
+    
+    @property
+    def grid_position_change(self):
+        """Calculate positions gained/lost from grid (negative = lost positions)"""
+        if self.position is not None and self.grid_position is not None:
+            return self.grid_position - self.position  # Positive = gained positions
+        return None

@@ -16,9 +16,10 @@ Architecture:
       ├─> Check Rate Limit
       ├─> Process Each Session Gap
       │     ├─> Load FastF1 Session (once)
+      │     ├─> Extract Driver Info (FIRST - populates identifiers)
       │     ├─> Extract Weather (if missing)
       │     ├─> Extract Circuit Data (if missing)
-      │     └─> Extract Other Data (future: laps, telemetry, etc.)
+      │     └─> Extract Telemetry Data (laps, pit stops)
       └─> Send Summary Notification
 
 Usage:
@@ -49,6 +50,14 @@ from analytics.flows.import_weather import (
 from analytics.flows.import_circuit import (
     extract_circuit_data,
     save_circuit_to_db
+)
+from analytics.flows.import_telemetry import (
+    extract_lap_data,
+    save_telemetry_to_db
+)
+from analytics.flows.import_drivers import (
+    extract_driver_info,
+    save_driver_info_to_db
 )
 from analytics.processing.loaders import load_fastf1_session
 from config.notifications import send_slack_notification_async
@@ -102,7 +111,37 @@ def process_session_gap(gap: SessionGap, force: bool = False) -> Dict:
             force=force  # Pass through to bypass Prefect cache
         )
         
-        # STEP 2: Extract weather data
+        # STEP 2: Extract and save driver information FIRST
+        # This ensures driver_number and abbreviation fields are populated
+        # before telemetry import attempts to match drivers
+        try:
+            logger.info("Extracting driver information from session")
+            
+            # Extract driver info from the already-loaded session
+            driver_data = extract_driver_info.fn(fastf1_session)
+            
+            if driver_data:
+                # Save to database
+                save_result = save_driver_info_to_db.fn(gap.session_id, driver_data)
+                
+                if save_result['status'] == 'success':
+                    result['extracted'].append('drivers')
+                    logger.info(
+                        f"Driver info: {save_result.get('drivers_created', 0)} created, "
+                        f"{save_result.get('drivers_updated', 0)} updated, "
+                        f"{save_result.get('results_created', 0)} session results"
+                    )
+                else:
+                    result['failed'].append('drivers')
+                    logger.warning(f"Driver save failed: {save_result.get('error')}")
+            else:
+                logger.info("No driver data available for this session")
+                
+        except Exception as e:
+            logger.error(f"Error extracting drivers: {e}")
+            result['failed'].append('drivers')
+        
+        # STEP 3: Extract weather data
         # Since gap detection only flags sessions with missing weather,
         # we know this session needs weather extraction
         try:
@@ -132,7 +171,7 @@ def process_session_gap(gap: SessionGap, force: bool = False) -> Dict:
             logger.error(f"Error extracting weather: {e}")
             result['failed'].append('weather')
         
-        # STEP 3: Extract circuit data
+        # STEP 4: Extract circuit data
         # Extract circuit information (corners, marshal lights, sectors)
         try:
             logger.info("Extracting circuit data from session")
@@ -162,7 +201,38 @@ def process_session_gap(gap: SessionGap, force: bool = False) -> Dict:
             logger.error(f"Error extracting circuit: {e}")
             result['failed'].append('circuit')
         
-        # FUTURE: Add more extractors (laps, telemetry, etc.)
+        # STEP 5: Extract telemetry data (laps, pit stops)
+        # Extract lap times, sector times, tire data, and pit stops
+        # Driver info is already populated from STEP 2, so matching should be fast and accurate
+        try:
+            logger.info("Extracting telemetry data from session")
+            
+            # Extract telemetry from the already-loaded session
+            telemetry_data = extract_lap_data.fn(fastf1_session)
+            
+            if telemetry_data:
+                # Save to database (pass f1_session for telemetry metrics extraction)
+                save_result = save_telemetry_to_db.fn(gap.session_id, telemetry_data, fastf1_session)
+                
+                if save_result['status'] == 'success':
+                    result['extracted'].append('telemetry')
+                    logger.info(
+                        f"Telemetry data extracted: {save_result.get('laps_created', 0)} laps, "
+                        f"{save_result.get('telemetry_created', 0)} telemetry metrics, "
+                        f"{save_result.get('pit_stops_created', 0)} pit stops"
+                    )
+                else:
+                    result['failed'].append('telemetry')
+                    logger.warning(f"Telemetry save failed: {save_result.get('error')}")
+            else:
+                logger.warning("No telemetry data available for this session")
+                result['failed'].append('telemetry')
+                
+        except Exception as e:
+            logger.error(f"Error extracting telemetry: {e}")
+            result['failed'].append('telemetry')
+        
+        # FUTURE: Add more extractors as needed
         # When adding a new extractor:
         # 1. Add missing_xxx field to SessionGap if needed
         # 2. Update detect_session_data_gaps() to check for missing xxx if needed
@@ -229,6 +299,7 @@ def import_fastf1_flow(
         'data_extracted': {
             'weather': 0,
             'circuit': 0,
+            'telemetry': 0,
         },
         'status': 'running',
         'start_time': start_time.isoformat(),
@@ -294,6 +365,7 @@ def import_fastf1_flow(
         logger.info(f"  • Failed: {summary['sessions_failed']}")
         logger.info(f"  • Weather extracted: {summary['data_extracted']['weather']}")
         logger.info(f"  • Circuit extracted: {summary['data_extracted']['circuit']}")
+        logger.info(f"  • Telemetry extracted: {summary['data_extracted']['telemetry']}")
         logger.info(f"  • Duration: {summary['duration_seconds']:.1f}s")
         
         # Send notification if requested
@@ -334,6 +406,7 @@ async def send_completion_notification(summary: Dict):
                 {"type": "mrkdwn", "text": f"*Failed:*\n{summary['sessions_failed']}"},
                 {"type": "mrkdwn", "text": f"*Weather:*\n{summary['data_extracted']['weather']}"},
                 {"type": "mrkdwn", "text": f"*Circuit:*\n{summary['data_extracted']['circuit']}"},
+                {"type": "mrkdwn", "text": f"*Telemetry:*\n{summary['data_extracted']['telemetry']}"},
                 {"type": "mrkdwn", "text": f"*Duration:*\n{summary.get('duration_seconds', 0):.1f}s"}
             ]
         }

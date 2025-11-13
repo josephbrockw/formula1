@@ -66,6 +66,19 @@ class Driver(models.Model):
     full_name = models.CharField(max_length=200, unique=True)
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
+    
+    # FastF1 identifiers for matching telemetry data
+    driver_number = models.CharField(
+        max_length=10,
+        blank=True,
+        help_text="Driver's racing number (e.g., '1', '44', '63')"
+    )
+    abbreviation = models.CharField(
+        max_length=3,
+        blank=True,
+        help_text="Three-letter driver abbreviation (e.g., 'VER', 'HAM', 'RUS')"
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
     current_team = models.ForeignKey(Team, on_delete=models.SET_NULL, null=True, related_name='drivers')
     
@@ -73,6 +86,8 @@ class Driver(models.Model):
         ordering = ['last_name', 'first_name']
         indexes = [
             models.Index(fields=['last_name', 'first_name']),
+            models.Index(fields=['driver_number']),
+            models.Index(fields=['abbreviation']),
         ]
     
     def __str__(self):

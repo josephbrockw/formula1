@@ -3,9 +3,10 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.db.models import F
 from .models import (
     User, Season, Team, Driver, DriverSnapshot, ConstructorSnapshot, CurrentLineup,
-    Circuit, Corner, MarshalLight, MarshalSector, Race, Session, SessionWeather, SessionLoadStatus,
+    Circuit, Corner, MarshalLight, MarshalSector, Race, Session, SessionWeather, SessionResult, SessionLoadStatus,
     DriverRacePerformance, DriverEventScore,
     ConstructorRacePerformance, ConstructorEventScore,
+    Lap, Telemetry, PitStop,
 )
 
 
@@ -24,8 +25,8 @@ class TeamAdmin(admin.ModelAdmin):
 
 @admin.register(Driver)
 class DriverAdmin(admin.ModelAdmin):
-    list_display = ['full_name', 'first_name', 'last_name', 'created_at']
-    search_fields = ['full_name', 'first_name', 'last_name']
+    list_display = ['full_name', 'driver_number', 'abbreviation', 'first_name', 'last_name', 'created_at']
+    search_fields = ['full_name', 'first_name', 'last_name', 'driver_number', 'abbreviation']
     list_filter = ['created_at']
 
 
@@ -348,6 +349,70 @@ class SessionWeatherAdmin(admin.ModelAdmin):
     weather_summary.short_description = 'Weather Summary'
 
 
+@admin.register(SessionResult)
+class SessionResultAdmin(admin.ModelAdmin):
+    list_display = [
+        'driver', 'session', 'position', 'grid_position', 'status', 
+        'points', 'grid_change', 'is_podium_flag'
+    ]
+    list_filter = ['session__session_type', 'session__race__season', 'status', 'position']
+    search_fields = ['driver__full_name', 'driver__last_name', 'session__race__name']
+    ordering = ['session__race__season', 'session__race__round_number', 'session__session_number', 'position']
+    readonly_fields = ['created_at', 'updated_at', 'grid_change', 'is_podium_flag', 'is_points_flag', 'is_dnf_flag']
+    raw_id_fields = ['session', 'driver', 'team']
+    
+    fieldsets = (
+        ('Session & Driver', {
+            'fields': ('session', 'driver', 'team')
+        }),
+        ('Classification', {
+            'fields': ('position', 'grid_position', 'class_position', 'status')
+        }),
+        ('Result Details', {
+            'fields': ('time', 'points')
+        }),
+        ('FastF1 Identifiers', {
+            'fields': ('driver_number', 'abbreviation'),
+            'classes': ('collapse',)
+        }),
+        ('Analysis', {
+            'fields': ('grid_change', 'is_podium_flag', 'is_points_flag', 'is_dnf_flag'),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def grid_change(self, obj):
+        change = obj.grid_position_change
+        if change is None:
+            return 'N/A'
+        if change > 0:
+            return f'+{change} positions gained'
+        elif change < 0:
+            return f'{change} positions lost'
+        else:
+            return 'No change'
+    grid_change.short_description = 'Grid Position Change'
+    
+    def is_podium_flag(self, obj):
+        return obj.is_podium
+    is_podium_flag.short_description = 'Podium'
+    is_podium_flag.boolean = True
+    
+    def is_points_flag(self, obj):
+        return obj.is_points_finish
+    is_points_flag.short_description = 'Points'
+    is_points_flag.boolean = True
+    
+    def is_dnf_flag(self, obj):
+        return obj.is_dnf
+    is_dnf_flag.short_description = 'DNF'
+    is_dnf_flag.boolean = True
+
+
 class SessionInline(admin.TabularInline):
     """Inline display of sessions within a race"""
     model = Session
@@ -626,3 +691,89 @@ class SessionLoadStatusAdmin(admin.ModelAdmin):
             return json.dumps(obj.prefect_metadata, indent=2)
         return 'No metadata'
     prefect_metadata_display.short_description = 'Prefect Metadata'
+
+
+@admin.register(Lap)
+class LapAdmin(admin.ModelAdmin):
+    list_display = ['session', 'driver', 'lap_number', 'lap_time', 'compound', 'position', 'is_personal_best']
+    list_filter = ['session__session_type', 'compound', 'is_personal_best', 'fresh_tire']
+    search_fields = ['driver__full_name', 'driver__last_name', 'session__name']
+    readonly_fields = ['created_at', 'updated_at']
+    raw_id_fields = ['session', 'driver', 'team']
+    
+    fieldsets = (
+        ('Basic Info', {
+            'fields': ('session', 'driver', 'team', 'lap_number', 'driver_number')
+        }),
+        ('Lap Times', {
+            'fields': ('lap_time', 'sector_1_time', 'sector_2_time', 'sector_3_time', 'lap_start_time')
+        }),
+        ('Tire Info', {
+            'fields': ('compound', 'tire_life', 'fresh_tire')
+        }),
+        ('Speed Traps', {
+            'fields': ('speed_i1', 'speed_i2', 'speed_fl', 'speed_st')
+        }),
+        ('Pit & Track Info', {
+            'fields': ('pit_in_time', 'pit_out_time', 'track_status', 'position')
+        }),
+        ('Flags', {
+            'fields': ('is_personal_best', 'is_accurate')
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+@admin.register(Telemetry)
+class TelemetryAdmin(admin.ModelAdmin):
+    list_display = ['lap', 'max_speed', 'avg_speed', 'throttle_pct_avg', 'brake_pct', 'drs_activations']
+    search_fields = ['lap__driver__full_name', 'lap__session__name']
+    readonly_fields = ['created_at', 'updated_at']
+    raw_id_fields = ['lap']
+    
+    fieldsets = (
+        ('Lap Reference', {
+            'fields': ('lap',)
+        }),
+        ('Speed Metrics', {
+            'fields': ('max_speed', 'min_speed', 'avg_speed')
+        }),
+        ('Throttle & Brake', {
+            'fields': ('throttle_pct_full', 'throttle_pct_avg', 'brake_pct')
+        }),
+        ('Engine & Gear', {
+            'fields': ('max_gear', 'max_rpm', 'avg_rpm')
+        }),
+        ('DRS', {
+            'fields': ('drs_activations', 'drs_distance')
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+@admin.register(PitStop)
+class PitStopAdmin(admin.ModelAdmin):
+    list_display = ['session', 'driver', 'lap_number', 'stop_number', 'pit_duration']
+    list_filter = ['session__session_type']
+    search_fields = ['driver__full_name', 'driver__last_name', 'session__name']
+    readonly_fields = ['created_at', 'updated_at']
+    raw_id_fields = ['session', 'driver', 'lap']
+    
+    fieldsets = (
+        ('Basic Info', {
+            'fields': ('session', 'driver', 'lap', 'lap_number', 'stop_number')
+        }),
+        ('Timing', {
+            'fields': ('pit_in_time', 'pit_out_time', 'pit_duration')
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )

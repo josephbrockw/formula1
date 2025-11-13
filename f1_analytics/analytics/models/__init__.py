@@ -32,6 +32,7 @@ from .events import (
     Race,
     Session,
     SessionWeather,
+    SessionResult,
 )
 
 # Import pipeline models
@@ -49,8 +50,12 @@ from .fantasy import (
     ConstructorEventScore,
 )
 
-# Import telemetry models (when implemented)
-# from .telemetry import ...
+# Import telemetry models
+from .telemetry import (
+    Lap,
+    Telemetry,
+    PitStop,
+)
 
 # Explicit exports for clarity
 __all__ = [
@@ -68,6 +73,7 @@ __all__ = [
     'Race',
     'Session',
     'SessionWeather',
+    'SessionResult',
     # Pipeline models (pipeline.py)
     'SessionLoadStatus',
     # Fantasy models (fantasy.py)
@@ -77,5 +83,8 @@ __all__ = [
     'DriverEventScore',
     'ConstructorRacePerformance',
     'ConstructorEventScore',
-    # Telemetry models (telemetry.py - to be added)
+    # Telemetry models (telemetry.py)
+    'Lap',
+    'Telemetry',
+    'PitStop',
 ]
