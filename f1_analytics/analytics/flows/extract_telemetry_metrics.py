@@ -143,11 +143,17 @@ def extract_all_telemetry_for_session(
     # Add progress bar for terminal output
     try:
         from tqdm import tqdm
+        import sys
+        
         laps_iterator = tqdm(
             laps_data, 
-            desc="Extracting telemetry", 
+            desc="  └─ Extracting telemetry",  # Indent to show nesting
             unit="lap",
-            disable=logger is None  # Disable if no logger (silent mode)
+            position=None,  # Auto-position
+            leave=False,  # Clear after completion
+            file=sys.stderr,  # Use stderr to avoid mixing with logs
+            disable=logger is None,  # Disable if no logger (silent mode)
+            mininterval=0.5  # Update every 0.5s to reduce flicker
         )
     except ImportError:
         # tqdm not available, use regular iterator

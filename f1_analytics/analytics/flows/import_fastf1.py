@@ -325,8 +325,16 @@ def import_fastf1_flow(
         logger.info("PHASE 2: Process Sessions")
         logger.info("=" * 80)
         
+        total_sessions = len(sessions_to_process)
+        
         for i, gap in enumerate(sessions_to_process, 1):
-            logger.info(f"\nProcessing session {i}/{len(sessions_to_process)}: {gap}")
+            # Log session start
+            pct_complete = int((i - 1) / total_sessions * 100)
+            sessions_remaining = total_sessions - (i - 1)
+            logger.info(
+                f"\nSession {i}/{total_sessions}: Starting {gap.year} Round {gap.round_number} "
+                f"{gap.session_type} ({pct_complete}% complete - {sessions_remaining} remaining)"
+            )
             
             # Process the session
             # If FastF1 hits rate limit, loaders.py will auto-pause for 1 hour and retry
@@ -337,17 +345,24 @@ def import_fastf1_flow(
                 summary['sessions_succeeded'] += 1
                 logger.info(f"✅ Success - extracted: {', '.join(result['extracted'])}")
                 
-                # Count extractions
+                # Track extracted data
                 for data_type in result['extracted']:
                     if data_type in summary['data_extracted']:
                         summary['data_extracted'][data_type] += 1
-                        
             elif result['status'] == 'partial':
                 summary['sessions_succeeded'] += 1
                 logger.warning(f"⚠️  Partial - extracted: {', '.join(result['extracted'])}, failed: {', '.join(result['failed'])}")
             else:
                 summary['sessions_failed'] += 1
                 logger.error(f"❌ Failed - {result.get('error', 'Unknown error')}")
+            
+            # Log session completion with progress
+            pct_complete_after = int(i / total_sessions * 100)
+            sessions_remaining_after = total_sessions - i
+            logger.info(
+                f"Processing session {i}/{total_sessions} ({pct_complete_after}% complete) - "
+                f"{sessions_remaining_after} remaining"
+            )
         
         # PHASE 5: COMPLETION
         logger.info("\n" + "=" * 80)

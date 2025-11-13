@@ -79,7 +79,10 @@ def get_sessions_to_process(
                     session_type=session.session_type,
                     session_number=session.session_number,
                     event_name=session.race.name if session.race.event_format == 'testing' else None,
-                    missing_weather=True  # Force re-import
+                    missing_weather=True,  # Force re-import all data types
+                    missing_drivers=True,
+                    missing_telemetry=True,
+                    missing_circuit=True
                 )
                 session_gaps.append(gap)
                 added += 1

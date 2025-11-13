@@ -89,65 +89,73 @@ def load_fastf1_session(
     
     # Use event name for testing events, round number for regular events
     event_identifier = event_name if event_name else round_num
+    event_display = f"{round_num} {event_name}" if event_name else f"Round {round_num}"
     
     logger.info(
-        f"Loading FastF1 session: {year} {event_identifier} {session_type} "
+        f"Loading FastF1 session: {year} {event_display} {session_type} "
         f"(identifier: {fastf1_identifier})"
     )
     
-    try:
-        # This is the actual API call that counts against rate limit
-        # Use event_name for testing events, round_num for regular races
-        f1_session = fastf1.get_session(year, event_identifier, fastf1_identifier)
-        
-        # Load session data (this downloads telemetry)
-        logger.info(f"Calling session.load() - this may take 30-60 seconds...")
-        f1_session.load()
-        
-        # Record API call for rate limit tracking
-        # This tracks function calls, not HTTP requests
-        # (FastF1 makes ~3-5 HTTP requests per session.load())
-        record_api_call(session_id)
-        
-        logger.info(f"✅ Successfully loaded {year} {event_identifier} {session_type}")
-        
-        return f1_session
-        
-    except fastf1.req.RateLimitExceededError as e:
-        logger.error(f"❌ Rate limit exceeded by FastF1!")
-        logger.error(f"   Error: {e}")
-        
-        # Use centralized pause function for consistent behavior
-        wait_for_rate_limit()
-        
-        # Retry once after waiting
-        logger.info(f"🔄 Retrying: {year} {event_identifier} {session_type}")
-        f1_session = fastf1.get_session(year, event_identifier, fastf1_identifier)
-        f1_session.load()
-        record_api_call(session_id)
-        
-        return f1_session
+    # Retry loop for rate limit handling
+    max_rate_limit_retries = 3
     
-    except Exception as e:
-        error_msg = str(e).lower()
+    for attempt in range(max_rate_limit_retries):
+        try:
+            # This is the actual API call that counts against rate limit
+            # Use event_name for testing events, round_num for regular races
+            f1_session = fastf1.get_session(year, event_identifier, fastf1_identifier)
+            
+            # Load session data (this downloads telemetry)
+            logger.info(f"Calling session.load() - this may take 30-60 seconds...")
+            f1_session.load()
+            
+            # Record API call for rate limit tracking
+            # This tracks function calls, not HTTP requests
+            # (FastF1 makes ~3-5 HTTP requests per session.load())
+            record_api_call(session_id)
+            
+            # Get race name from session event
+            race_name = getattr(f1_session.event, 'EventName', None) or event_identifier
+            logger.info(f"✅ Successfully loaded {year} {race_name} {session_type}")
+            
+            return f1_session
+            
+        except fastf1.req.RateLimitExceededError as e:
+            logger.error(f"❌ Rate limit exceeded by FastF1 (attempt {attempt + 1}/{max_rate_limit_retries})")
+            logger.error(f"   Error: {e}")
+            
+            # If this was our last attempt, re-raise the error
+            if attempt == max_rate_limit_retries - 1:
+                logger.error(f"❌ Max rate limit retries reached. Giving up.")
+                raise
+            
+            # Use centralized pause function for consistent behavior (1 hour)
+            wait_for_rate_limit()
+            
+            # Loop will retry automatically
+            event_display = event_name if event_name else f"Round {event_identifier}"
+            logger.info(f"🔄 Retrying: {year} {event_display} {session_type}")
         
-        # Check for non-retryable errors (data not available)
-        non_retryable_keywords = [
-            'not found',
-            'does not exist',
-            'no data available',
-            'invalid round',
-            'invalid event',
-        ]
-        
-        if any(keyword in error_msg for keyword in non_retryable_keywords):
-            logger.warning(f"⚠️ Data not available (will not retry): {e}")
-            # Raise as NonRetryableError to prevent retries
-            raise NonRetryableError(f"Data not available for {year} {event_identifier} {session_type}: {e}") from e
-        
-        # For other errors, log and re-raise (Prefect will retry)
-        logger.error(f"❌ Failed to load session (will retry): {e}")
-        raise
+        except Exception as e:
+            error_msg = str(e).lower()
+            
+            # Check for non-retryable errors (data not available)
+            non_retryable_keywords = [
+                'not found',
+                'does not exist',
+                'no data available',
+                'invalid round',
+                'invalid event',
+            ]
+            
+            if any(keyword in error_msg for keyword in non_retryable_keywords):
+                logger.warning(f"⚠️ Data not available (will not retry): {e}")
+                # Raise as NonRetryableError to prevent retries
+                raise NonRetryableError(f"Data not available for {year} {event_identifier} {session_type}: {e}") from e
+            
+            # For other errors, log and re-raise (Prefect will retry)
+            logger.error(f"❌ Failed to load session (will retry): {e}")
+            raise
 
 
 @task(name="Check Session Loadable")

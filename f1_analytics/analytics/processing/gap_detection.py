@@ -23,6 +23,7 @@ from prefect import task, get_run_logger
 
 from analytics.models import Season, Race, Session, SessionWeather, Circuit
 from analytics.models import Corner, MarshalLight, MarshalSector
+from analytics.models import SessionResult, Lap, Telemetry
 
 
 @dataclass
@@ -30,8 +31,7 @@ class SessionGap:
     """
     Represents missing data for a specific session.
     
-    Currently only tracks weather data since that's all we extract.
-    In the future, add fields for laps, telemetry, circuit, etc.
+    Tracks all extractable data types: weather, driver results, telemetry, and circuit.
     
     Attributes:
         session_id: Database ID of the session (None if session doesn't exist)
@@ -41,6 +41,9 @@ class SessionGap:
         session_number: Session number (1-5)
         event_name: Event name for testing events (optional)
         missing_weather: Whether weather data is missing
+        missing_drivers: Whether driver/SessionResult data is missing
+        missing_telemetry: Whether lap/telemetry data is missing
+        missing_circuit: Whether circuit geometry is missing
     """
     session_id: Optional[int]
     year: int
@@ -49,14 +52,39 @@ class SessionGap:
     session_number: int
     event_name: Optional[str] = None
     missing_weather: bool = False
+    missing_drivers: bool = False
+    missing_telemetry: bool = False
+    missing_circuit: bool = False
     
     def __repr__(self):
         parts = [f"{self.year} Round {self.round_number} {self.session_type}"]
         if self.event_name:
             parts.append(f"({self.event_name})")
+        
+        missing = []
         if self.missing_weather:
-            parts.append("[missing: weather]")
+            missing.append("weather")
+        if self.missing_drivers:
+            missing.append("drivers")
+        if self.missing_telemetry:
+            missing.append("telemetry")
+        if self.missing_circuit:
+            missing.append("circuit")
+        
+        if missing:
+            parts.append(f"[missing: {', '.join(missing)}]")
+        
         return " ".join(parts)
+    
+    @property
+    def has_any_gaps(self):
+        """Check if this session has any missing data"""
+        return (
+            self.missing_weather or 
+            self.missing_drivers or 
+            self.missing_telemetry or 
+            self.missing_circuit
+        )
 
 
 @dataclass
@@ -191,16 +219,19 @@ def detect_missing_sessions(season_year: int) -> List[tuple]:
 @task(name="Detect Session Data Gaps")
 def detect_session_data_gaps(season_year: int) -> List[SessionGap]:
     """
-    Detect missing weather data for existing sessions.
+    Detect sessions with missing related data (weather, drivers, telemetry, circuit).
     
-    Currently only checks for missing weather data since that's all we extract.
-    Future: Add checks for laps, telemetry, circuit data when we implement those extractors.
+    Checks for:
+    - SessionWeather: Weather conditions during session
+    - SessionResult: Driver results/classification
+    - Lap: Lap times and sector times
+    - Circuit geometry (if race's circuit has no corners)
     
     Args:
         season_year: Year to check
         
     Returns:
-        List of SessionGap objects for sessions missing weather data
+        List of SessionGap objects for sessions with any missing data
     """
     logger = get_run_logger()
     
@@ -215,15 +246,28 @@ def detect_session_data_gaps(season_year: int) -> List[SessionGap]:
     # Get all sessions for the season
     sessions = Session.objects.filter(
         race__season=season
-    ).select_related('race').order_by(
+    ).select_related('race', 'race__circuit').order_by(
         'race__round_number', 'session_number'
     )
     
     for session in sessions:
-        # Check for missing weather
+        # Check for missing data types
         has_weather = SessionWeather.objects.filter(session=session).exists()
+        has_drivers = SessionResult.objects.filter(session=session).exists()
+        has_telemetry = Lap.objects.filter(session=session).exists()
         
-        if not has_weather:
+        # Check for circuit geometry (only once per circuit)
+        has_circuit = False
+        if session.race.circuit:
+            has_circuit = Corner.objects.filter(circuit=session.race.circuit).exists()
+        
+        # Create gap if anything is missing
+        missing_weather = not has_weather
+        missing_drivers = not has_drivers
+        missing_telemetry = not has_telemetry
+        missing_circuit = not has_circuit
+        
+        if missing_weather or missing_drivers or missing_telemetry or missing_circuit:
             gap = SessionGap(
                 session_id=session.id,
                 year=season_year,
@@ -231,13 +275,19 @@ def detect_session_data_gaps(season_year: int) -> List[SessionGap]:
                 session_type=session.session_type,
                 session_number=session.session_number,
                 event_name=session.race.name if session.race.event_format == 'testing' else None,
-                missing_weather=True
+                missing_weather=missing_weather,
+                missing_drivers=missing_drivers,
+                missing_telemetry=missing_telemetry,
+                missing_circuit=missing_circuit
             )
             gaps.append(gap)
             logger.debug(f"Gap detected: {gap}")
     
     if gaps:
-        logger.info(f"Found {len(gaps)} sessions missing weather data")
+        logger.info(
+            f"Found {len(gaps)} sessions with missing data "
+            f"(weather, drivers, telemetry, or circuit)"
+        )
     
     return gaps
 
