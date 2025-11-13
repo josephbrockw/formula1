@@ -114,6 +114,16 @@ class Command(BaseCommand):
             else:
                 self.stdout.write(self.style.WARNING(f'⚠️  Status: {summary["status"].upper()}'))
             
+            # Send Slack notification with summary
+            if notify or summary['status'] in ['complete', 'failed']:
+                from config.notifications import send_import_completion_notification
+                
+                try:
+                    send_import_completion_notification(summary, year, round_number)
+                    self.stdout.write(self.style.SUCCESS('\n📱 Slack notification sent!'))
+                except Exception as e:
+                    self.stdout.write(self.style.WARNING(f'\n⚠️  Failed to send Slack notification: {e}'))
+            
         except KeyboardInterrupt:
             self.stdout.write(
                 self.style.WARNING('\n\n⚠️  Import interrupted by user')

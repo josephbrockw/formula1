@@ -57,3 +57,108 @@ def send_slack_notification(message: str, blocks: list = None):
         >>> send_slack_notification("Hello from Django!")
     """
     return asyncio.run(send_slack_notification_async(message, blocks))
+
+
+def send_import_completion_notification(summary: dict, year: int, round_number: int = None):
+    """
+    Send Slack notification with FastF1 import completion summary.
+    
+    Args:
+        summary: Import summary dict with status, counts, duration, etc.
+        year: Season year
+        round_number: Specific round number (None for full season)
+        
+    Returns:
+        True if notification sent successfully, False otherwise
+    """
+    try:
+        # Determine status emoji and text
+        if summary['status'] == 'complete':
+            status_text = 'Complete'
+        elif summary['status'] == 'failed':
+            status_text = 'Failed'
+        else:
+            status_text = summary['status'].title()
+        
+        # Build scope description
+        if round_number:
+            scope = f"{year} Season - Round {round_number}"
+        else:
+            scope = f"{year} Season - Full Import"
+        
+        # Format duration
+        duration = summary.get('duration_seconds', 0)
+        if duration >= 3600:
+            duration_str = f"{duration/3600:.1f} hours"
+        elif duration >= 60:
+            duration_str = f"{duration/60:.1f} minutes"
+        else:
+            duration_str = f"{duration:.1f} seconds"
+        
+        # Build blocks
+        blocks = [
+            {
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": f"FastF1 Import {status_text}",
+                    "emoji": True
+                }
+            },
+            {
+                "type": "section",
+                "fields": [
+                    {
+                        "type": "mrkdwn",
+                        "text": f"*Scope:*\n{scope}"
+                    },
+                    {
+                        "type": "mrkdwn",
+                        "text": f"*Duration:*\n{duration_str}"
+                    }
+                ]
+            },
+            {
+                "type": "divider"
+            },
+            {
+                "type": "section",
+                "fields": [
+                    {
+                        "type": "mrkdwn",
+                        "text": f"*Sessions Processed:*\n{summary['sessions_processed']}/{summary['gaps_detected']}"
+                    },
+                    {
+                        "type": "mrkdwn",
+                        "text": f"*Success Rate:*\n{summary['sessions_succeeded']}/{summary['sessions_processed']}"
+                    }
+                ]
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*Data Extracted:*\n• Weather: {summary['data_extracted']['weather']} sessions\n• Circuit: {summary['data_extracted']['circuit']} tracks\n• Telemetry: {summary['data_extracted'].get('telemetry', 0)} sessions"
+                }
+            }
+        ]
+        
+        # Add failure info if there were failures
+        if summary.get('sessions_failed', 0) > 0:
+            blocks.append({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*Failed Sessions:* {summary['sessions_failed']}"
+                }
+            })
+        
+        # Send notification
+        return send_slack_notification(
+            message=f"FastF1 Import {status_text}: {scope}",
+            blocks=blocks
+        )
+        
+    except Exception as e:
+        print(f"Failed to send import completion notification: {e}")
+        return False

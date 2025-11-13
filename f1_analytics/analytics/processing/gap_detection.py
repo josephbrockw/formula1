@@ -23,7 +23,7 @@ from prefect import task, get_run_logger
 
 from analytics.models import Season, Race, Session, SessionWeather, Circuit
 from analytics.models import Corner, MarshalLight, MarshalSector
-from analytics.models import SessionResult, Lap, Telemetry
+from analytics.models import SessionResult, Lap, Telemetry, PitStop
 
 
 @dataclass
@@ -31,7 +31,7 @@ class SessionGap:
     """
     Represents missing data for a specific session.
     
-    Tracks all extractable data types: weather, driver results, telemetry, and circuit.
+    Tracks all extractable data types: weather, driver results, telemetry, pit stops, and circuit.
     
     Attributes:
         session_id: Database ID of the session (None if session doesn't exist)
@@ -43,6 +43,7 @@ class SessionGap:
         missing_weather: Whether weather data is missing
         missing_drivers: Whether driver/SessionResult data is missing
         missing_telemetry: Whether lap/telemetry data is missing
+        missing_pit_stops: Whether pit stop data is missing
         missing_circuit: Whether circuit geometry is missing
     """
     session_id: Optional[int]
@@ -54,6 +55,7 @@ class SessionGap:
     missing_weather: bool = False
     missing_drivers: bool = False
     missing_telemetry: bool = False
+    missing_pit_stops: bool = False
     missing_circuit: bool = False
     
     def __repr__(self):
@@ -68,6 +70,8 @@ class SessionGap:
             missing.append("drivers")
         if self.missing_telemetry:
             missing.append("telemetry")
+        if self.missing_pit_stops:
+            missing.append("pit stops")
         if self.missing_circuit:
             missing.append("circuit")
         
@@ -83,6 +87,7 @@ class SessionGap:
             self.missing_weather or 
             self.missing_drivers or 
             self.missing_telemetry or 
+            self.missing_pit_stops or
             self.missing_circuit
         )
 
@@ -255,6 +260,7 @@ def detect_session_data_gaps(season_year: int) -> List[SessionGap]:
         has_weather = SessionWeather.objects.filter(session=session).exists()
         has_drivers = SessionResult.objects.filter(session=session).exists()
         has_telemetry = Lap.objects.filter(session=session).exists()
+        has_pit_stops = PitStop.objects.filter(session=session).exists()
         
         # Check for circuit geometry (only once per circuit)
         has_circuit = False
@@ -265,9 +271,10 @@ def detect_session_data_gaps(season_year: int) -> List[SessionGap]:
         missing_weather = not has_weather
         missing_drivers = not has_drivers
         missing_telemetry = not has_telemetry
+        missing_pit_stops = not has_pit_stops
         missing_circuit = not has_circuit
         
-        if missing_weather or missing_drivers or missing_telemetry or missing_circuit:
+        if missing_weather or missing_drivers or missing_telemetry or missing_pit_stops or missing_circuit:
             gap = SessionGap(
                 session_id=session.id,
                 year=season_year,
@@ -278,6 +285,7 @@ def detect_session_data_gaps(season_year: int) -> List[SessionGap]:
                 missing_weather=missing_weather,
                 missing_drivers=missing_drivers,
                 missing_telemetry=missing_telemetry,
+                missing_pit_stops=missing_pit_stops,
                 missing_circuit=missing_circuit
             )
             gaps.append(gap)
@@ -286,7 +294,7 @@ def detect_session_data_gaps(season_year: int) -> List[SessionGap]:
     if gaps:
         logger.info(
             f"Found {len(gaps)} sessions with missing data "
-            f"(weather, drivers, telemetry, or circuit)"
+            f"(weather, drivers, telemetry, pit stops, or circuit)"
         )
     
     return gaps

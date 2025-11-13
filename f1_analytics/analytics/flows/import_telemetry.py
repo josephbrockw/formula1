@@ -114,37 +114,14 @@ def extract_lap_data(f1_session) -> Optional[Dict]:
         
         logger.info(f"Extracted {len(laps_data)} laps")
         
-        # Extract pit stop data
-        pit_stops_data = []
-        try:
-            pit_stops_df = f1_session.laps.get_pos_changes()
-            # Note: FastF1 doesn't have a direct pit_stops attribute,
-            # we need to infer from lap data or use race results
-            # For now, we'll extract from lap data where pit_in_time is not null
-            
-            for idx, lap_row in laps_df.iterrows():
-                if pd.notna(lap_row.get('PitInTime')) and pd.notna(lap_row.get('PitOutTime')):
-                    pit_in = _to_seconds(lap_row.get('PitInTime'))
-                    pit_out = _to_seconds(lap_row.get('PitOutTime'))
-                    
-                    if pit_in and pit_out:
-                        # Get driver info from map
-                        driver_abbr = str(lap_row.get('Driver', ''))
-                        driver_info = driver_info_map.get(driver_abbr, {})
-                        
-                        pit_stop = {
-                            'driver_number': str(lap_row.get('DriverNumber', '')),
-                            'full_name': driver_info.get('full_name', ''),
-                            'lap_number': int(lap_row.get('LapNumber', 0)),
-                            'pit_in_time': pit_in,
-                            'pit_out_time': pit_out,
-                            'pit_duration': pit_out - pit_in,
-                        }
-                        pit_stops_data.append(pit_stop)
-            
-            logger.info(f"Extracted {len(pit_stops_data)} pit stops")
-        except Exception as e:
-            logger.warning(f"Could not extract pit stops: {e}")
+        # Extract pit stop data using dedicated module
+        from analytics.flows.extract_pit_stops import extract_pit_stops_from_session
+        
+        pit_stops_data = extract_pit_stops_from_session(
+            f1_session,
+            driver_info_map=driver_info_map,
+            logger=logger
+        )
         
         return {
             'laps': laps_data,
@@ -178,7 +155,6 @@ def save_telemetry_to_db(session_id: int, telemetry_data: Dict, f1_session=None,
         
         laps_created = 0
         telemetry_created = 0
-        pit_stops_created = 0
         
         # Create a mapping of driver numbers to Driver objects
         driver_map = {}
@@ -274,47 +250,15 @@ def save_telemetry_to_db(session_id: int, telemetry_data: Dict, f1_session=None,
             if created:
                 laps_created += 1
         
-        # STEP 2: Save pit stops
-        # Group pit stops by driver and assign stop numbers
-        pit_stops_by_driver = {}
-        for pit_stop_dict in telemetry_data.get('pit_stops', []):
-            driver_number = pit_stop_dict['driver_number']
-            if driver_number not in pit_stops_by_driver:
-                pit_stops_by_driver[driver_number] = []
-            pit_stops_by_driver[driver_number].append(pit_stop_dict)
+        # STEP 2: Save pit stops using dedicated module
+        from analytics.flows.extract_pit_stops import save_pit_stops_to_db
         
-        for driver_number, stops in pit_stops_by_driver.items():
-            if driver_number not in driver_map:
-                continue
-            
-            driver = driver_map[driver_number]
-            
-            # Sort by lap number to assign stop numbers
-            stops.sort(key=lambda x: x['lap_number'])
-            
-            for stop_num, pit_stop_dict in enumerate(stops, 1):
-                # Find corresponding lap
-                lap = Lap.objects.filter(
-                    session=session,
-                    driver=driver,
-                    lap_number=pit_stop_dict['lap_number']
-                ).first()
-                
-                pit_stop, created = PitStop.objects.update_or_create(
-                    session=session,
-                    driver=driver,
-                    stop_number=stop_num,
-                    defaults={
-                        'lap': lap,
-                        'lap_number': pit_stop_dict['lap_number'],
-                        'pit_in_time': pit_stop_dict['pit_in_time'],
-                        'pit_out_time': pit_stop_dict['pit_out_time'],
-                        'pit_duration': pit_stop_dict['pit_duration'],
-                    }
-                )
-                
-                if created:
-                    pit_stops_created += 1
+        pit_stops_created = save_pit_stops_to_db(
+            session=session,
+            pit_stops_data=telemetry_data.get('pit_stops', []),
+            driver_map=driver_map,
+            logger=logger
+        )
         
         # STEP 3: Extract and save telemetry metrics (aggregated per lap)
         # Use dedicated telemetry metrics extraction module

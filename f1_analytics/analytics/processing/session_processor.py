@@ -82,6 +82,7 @@ def get_sessions_to_process(
                     missing_weather=True,  # Force re-import all data types
                     missing_drivers=True,
                     missing_telemetry=True,
+                    missing_pit_stops=True,
                     missing_circuit=True
                 )
                 session_gaps.append(gap)
