@@ -33,10 +33,15 @@ Usage:
     import_fastf1_flow(year=2024, force=True)
 """
 
+import json
+import os
 from typing import Optional, Dict, List
+from pathlib import Path
 from prefect import flow, task, get_run_logger
 from prefect.cache_policies import NONE
 from datetime import datetime
+
+_CHECKPOINT_PATH = Path(__file__).parent.parent.parent / "data" / "import_progress.json"
 
 from analytics.processing.gap_detection import SessionGap
 from analytics.processing.session_processor import get_sessions_to_process
@@ -320,13 +325,18 @@ def import_fastf1_flow(
         summary['gaps_detected'] = len(sessions_to_process)
         logger.info(f"📋 Will process {len(sessions_to_process)} sessions")
         
+        # PHASE 1b: PROACTIVE RATE LIMIT ESTIMATE
+        total_needed = len(sessions_to_process)
+        logger.info(f"This run needs ~{total_needed} API calls.")
+
         # PHASE 2: PROCESS SESSIONS
         logger.info("\n" + "=" * 80)
         logger.info("PHASE 2: Process Sessions")
         logger.info("=" * 80)
-        
+
         total_sessions = len(sessions_to_process)
-        
+        checkpoint_entries = []
+
         for i, gap in enumerate(sessions_to_process, 1):
             # Log session start
             pct_complete = int((i - 1) / total_sessions * 100)
@@ -344,7 +354,7 @@ def import_fastf1_flow(
             if result['status'] == 'success':
                 summary['sessions_succeeded'] += 1
                 logger.info(f"✅ Success - extracted: {', '.join(result['extracted'])}")
-                
+
                 # Track extracted data
                 for data_type in result['extracted']:
                     if data_type in summary['data_extracted']:
@@ -355,6 +365,23 @@ def import_fastf1_flow(
             else:
                 summary['sessions_failed'] += 1
                 logger.error(f"❌ Failed - {result.get('error', 'Unknown error')}")
+
+            # Write checkpoint after each session
+            checkpoint_entries.append({
+                'year': gap.year,
+                'round': gap.round_number,
+                'session_type': gap.session_type,
+                'status': result['status'],
+                'extracted': result.get('extracted', []),
+                'failed': result.get('failed', []),
+                'processed_at': datetime.now().isoformat(),
+            })
+            try:
+                _CHECKPOINT_PATH.parent.mkdir(parents=True, exist_ok=True)
+                with open(_CHECKPOINT_PATH, 'w') as _f:
+                    json.dump(checkpoint_entries, _f, indent=2)
+            except Exception as _e:
+                logger.warning(f"Could not write checkpoint: {_e}")
             
             # Log session completion with progress
             pct_complete_after = int(i / total_sessions * 100)

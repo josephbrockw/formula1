@@ -376,10 +376,17 @@ class Session(models.Model):
         help_text="Session date/time in UTC"
     )
     
+    # Race control data (race sessions only)
+    safety_car_laps = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Number of laps run under Safety Car or VSC during this session"
+    )
+
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         ordering = ['race', 'session_number']
         unique_together = [['race', 'session_number']]

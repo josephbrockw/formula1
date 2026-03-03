@@ -1,0 +1,72 @@
+[
+  {
+    "year": 2025,
+    "round": 1,
+    "session_type": "Practice 1",
+    "status": "success",
+    "extracted": [
+      "drivers",
+      "weather",
+      "circuit",
+      "telemetry"
+    ],
+    "failed": [],
+    "processed_at": "2026-03-03T03:26:34.197698"
+  },
+  {
+    "year": 2025,
+    "round": 1,
+    "session_type": "Practice 2",
+    "status": "success",
+    "extracted": [
+      "drivers",
+      "weather",
+      "circuit",
+      "telemetry"
+    ],
+    "failed": [],
+    "processed_at": "2026-03-03T03:26:37.103785"
+  },
+  {
+    "year": 2025,
+    "round": 1,
+    "session_type": "Practice 3",
+    "status": "success",
+    "extracted": [
+      "drivers",
+      "weather",
+      "circuit",
+      "telemetry"
+    ],
+    "failed": [],
+    "processed_at": "2026-03-03T03:26:39.548123"
+  },
+  {
+    "year": 2025,
+    "round": 1,
+    "session_type": "Qualifying",
+    "status": "success",
+    "extracted": [
+      "drivers",
+      "weather",
+      "circuit",
+      "telemetry"
+    ],
+    "failed": [],
+    "processed_at": "2026-03-03T03:27:28.460121"
+  },
+  {
+    "year": 2025,
+    "round": 1,
+    "session_type": "Race",
+    "status": "success",
+    "extracted": [
+      "drivers",
+      "weather",
+      "circuit",
+      "telemetry"
+    ],
+    "failed": [],
+    "processed_at": "2026-03-03T03:29:46.171672"
+  }
+]

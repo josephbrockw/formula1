@@ -18,11 +18,37 @@ Architecture:
     4. Update team assignments
 """
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 from prefect import task, get_run_logger
 import pandas as pd
 
 from analytics.processing.driver_matching import find_driver_by_fastf1_data
+
+
+def _count_safety_car_laps(f1_session, logger) -> Optional[int]:
+    """
+    Count unique lap numbers where a safety car or VSC was deployed.
+
+    Uses the TrackStatus column from session laps:
+      '4' = Safety Car deployed
+      '6' = Virtual Safety Car (VSC)
+      '7' = Safety Car ending / Slow zone
+    """
+    try:
+        laps_df = f1_session.laps
+        if laps_df is None or laps_df.empty:
+            return None
+        if 'TrackStatus' not in laps_df.columns or 'LapNumber' not in laps_df.columns:
+            return None
+
+        sc_mask = laps_df['TrackStatus'].astype(str).str.contains(r'[467]', na=False)
+        sc_lap_numbers: Set = set(laps_df.loc[sc_mask, 'LapNumber'].dropna().astype(int).tolist())
+        count = len(sc_lap_numbers)
+        logger.info(f"Safety car laps detected: {count}")
+        return count
+    except Exception as exc:
+        logger.warning(f"Could not count safety car laps: {exc}")
+        return None
 
 
 @task(name="Extract Driver Info from Session")
@@ -58,8 +84,22 @@ def extract_driver_info(f1_session) -> Optional[Dict]:
         logger.info(f"Processing driver info from session with {len(results_df)} drivers")
         
         drivers_data = []
-        
+
         for _, driver_result in results_df.iterrows():
+            # Convert FastF1 Time (timedelta gap to leader) to total seconds
+            time_val = driver_result.get('Time')
+            if time_val is not None and hasattr(time_val, 'total_seconds') and pd.notna(time_val):
+                time_str = str(round(time_val.total_seconds(), 3))
+            else:
+                time_str = ''
+
+            # Extract championship points (float, 0 if missing)
+            points_val = driver_result.get('Points')
+            if points_val is not None and pd.notna(points_val):
+                points = float(points_val)
+            else:
+                points = None
+
             # Extract all available driver fields
             driver_dict = {
                 'full_name': str(driver_result.get('FullName', '')),
@@ -70,19 +110,25 @@ def extract_driver_info(f1_session) -> Optional[Dict]:
                 'position': int(driver_result.get('Position', 0)) if pd.notna(driver_result.get('Position')) else None,
                 'grid_position': int(driver_result.get('GridPosition', 0)) if pd.notna(driver_result.get('GridPosition')) else None,
                 'status': str(driver_result.get('Status', '')),
+                'points': points,
+                'time': time_str,
             }
-            
+
             # Skip if missing critical fields
             if not driver_dict['full_name'] or not driver_dict['driver_number']:
                 logger.warning(f"Skipping driver with missing critical data: {driver_dict}")
                 continue
-            
+
             drivers_data.append(driver_dict)
-        
+
         logger.info(f"Extracted info for {len(drivers_data)} drivers")
-        
+
+        # Count safety car / VSC laps from lap track status
+        safety_car_laps = _count_safety_car_laps(f1_session, logger)
+
         return {
             'drivers': drivers_data,
+            'safety_car_laps': safety_car_laps,
         }
         
     except Exception as e:
@@ -204,8 +250,8 @@ def save_driver_info_to_db(session_id: int, driver_data: Dict) -> Dict:
                         'status': driver_dict.get('status', ''),
                         'driver_number': driver_number,
                         'abbreviation': abbreviation,
-                        # Note: time, points, class_position may be in FastF1 data
-                        # but not extracted yet - can add later if needed
+                        'points': driver_dict.get('points'),
+                        'time': driver_dict.get('time', ''),
                     }
                 )
                 
@@ -217,12 +263,19 @@ def save_driver_info_to_db(session_id: int, driver_data: Dict) -> Dict:
                 drivers_skipped += 1
                 continue
         
+        # Update session safety_car_laps if provided
+        safety_car_laps = driver_data.get('safety_car_laps')
+        if safety_car_laps is not None:
+            session.safety_car_laps = safety_car_laps
+            session.save(update_fields=['safety_car_laps'])
+            logger.info(f"Updated session safety_car_laps = {safety_car_laps}")
+
         logger.info(
             f"Driver info saved: {drivers_created} created, "
             f"{drivers_updated} updated, {drivers_skipped} skipped, "
             f"{results_created} session results created"
         )
-        
+
         return {
             'status': 'success',
             'drivers_created': drivers_created,

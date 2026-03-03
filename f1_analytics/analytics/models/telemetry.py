@@ -167,7 +167,12 @@ class Lap(models.Model):
         default=False,
         help_text="Whether this was driver's fastest lap in session"
     )
-    
+
+    is_fastest_lap = models.BooleanField(
+        default=False,
+        help_text="Whether this was the fastest lap of the entire session (across all drivers)"
+    )
+
     is_accurate = models.BooleanField(
         default=True,
         help_text="Whether lap timing is accurate (from FastF1)"

@@ -16,11 +16,13 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from analytics.views import dashboard, edit_lineup
+from analytics.views import dashboard, edit_lineup, data_status
 
 
 urlpatterns = [
     path('', dashboard, name='dashboard'),
     path('lineup/edit/', edit_lineup, name='edit_lineup'),
+    path('data/', data_status, name='data_status'),
+    path('data/<int:year>/', data_status, name='data_status_year'),
     path('admin/', admin.site.urls),
 ]

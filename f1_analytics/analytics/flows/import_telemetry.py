@@ -250,6 +250,24 @@ def save_telemetry_to_db(session_id: int, telemetry_data: Dict, f1_session=None,
             if created:
                 laps_created += 1
         
+        # Mark the session-wide fastest lap
+        try:
+            fastest = (
+                Lap.objects.filter(session=session, lap_time__isnull=False)
+                .order_by('lap_time')
+                .first()
+            )
+            if fastest:
+                Lap.objects.filter(session=session).update(is_fastest_lap=False)
+                fastest.is_fastest_lap = True
+                fastest.save(update_fields=['is_fastest_lap'])
+                logger.info(
+                    f"Fastest lap: {fastest.driver} Lap {fastest.lap_number} "
+                    f"({fastest.lap_time:.3f}s)"
+                )
+        except Exception as exc:
+            logger.warning(f"Could not mark fastest lap: {exc}")
+
         # STEP 2: Save pit stops using dedicated module
         from analytics.flows.extract_pit_stops import save_pit_stops_to_db
         

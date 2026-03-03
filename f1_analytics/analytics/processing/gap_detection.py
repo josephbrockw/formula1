@@ -301,33 +301,47 @@ def detect_session_data_gaps(season_year: int) -> List[SessionGap]:
 
 
 @task(name="Generate Gap Report")
-def generate_gap_report(season_year: int, expected_rounds: Optional[int] = None) -> GapReport:
+def generate_gap_report(
+    season_year: int,
+    expected_rounds: Optional[int] = None,
+    priority_first: bool = True,
+) -> GapReport:
     """
     Generate a complete report of missing data for a season.
-    
+
     This is the main entry point for gap detection. It orchestrates
     all detection tasks and produces a comprehensive report.
-    
+
     Args:
         season_year: Year to analyze
         expected_rounds: Expected number of rounds (optional)
-        
+        priority_first: If True (default), sort session gaps most-recent first
+                        so newer races are imported before older ones.
+
     Returns:
         GapReport with all detected gaps
     """
     logger = get_run_logger()
     logger.info(f"Generating gap report for {season_year} season")
-    
+
     # Detect all types of gaps
     missing_races = detect_missing_races(season_year, expected_rounds)
     missing_sessions = detect_missing_sessions(season_year)
     session_gaps = detect_session_data_gaps(season_year)
-    
+
+    # Sort most-recent sessions first (highest round number, then highest session number)
+    if priority_first and session_gaps:
+        session_gaps = sorted(
+            session_gaps,
+            key=lambda g: (g.year, g.round_number, g.session_number),
+            reverse=True,
+        )
+        logger.info("Session gaps sorted: most-recent first")
+
     # Calculate total API calls needed
     # Each session gap = 1 API call (we extract all data from one session load)
-    # Missing sessions also need to be created first (separate process)
     total_calls = len(session_gaps)
-    
+
     report = GapReport(
         season_year=season_year,
         missing_races=missing_races,
@@ -335,7 +349,7 @@ def generate_gap_report(season_year: int, expected_rounds: Optional[int] = None)
         session_gaps=session_gaps,
         total_api_calls_needed=total_calls
     )
-    
+
     logger.info(f"Gap report generated: {report}")
-    
+
     return report

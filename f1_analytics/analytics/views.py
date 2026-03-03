@@ -4,7 +4,8 @@ from django.db.models import Max, Q
 from django.utils import timezone
 from analytics.models import (
     User, CurrentLineup, Driver, DriverSnapshot, 
-    Team, ConstructorSnapshot, Season
+    Team, ConstructorSnapshot, Season, Session, SessionWeather,
+    SessionResult, Lap, Telemetry, PitStop, Circuit, Corner
 )
 from analytics.forms import CurrentLineupForm
 
@@ -167,3 +168,120 @@ def edit_lineup(request):
     }
     
     return render(request, 'analytics/edit_lineup.html', context)
+
+
+def data_status(request, year=None):
+    """
+    Data status dashboard showing gap detection and data completeness.
+    
+    Visualizes:
+    - Overall data completeness summary
+    - Coverage by data type (weather, drivers, telemetry, pit stops, circuit)
+    - Sessions with missing data
+    """
+    # Default to current year if not specified
+    if year is None:
+        year = timezone.now().year
+    
+    # Get or detect gaps for the season
+    from analytics.processing.gap_detection import detect_session_data_gaps
+    
+    try:
+        season = Season.objects.get(year=year)
+    except Season.DoesNotExist:
+        # Season not found, show empty state
+        context = {
+            'year': year,
+            'season_not_found': True,
+        }
+        return render(request, 'analytics/data_status.html', context)
+    
+    # Detect gaps
+    gaps = detect_session_data_gaps(year)
+    
+    # Get all sessions for the season
+    all_sessions = Session.objects.filter(race__season=season).count()
+    
+    # Calculate summary statistics
+    sessions_with_gaps = len(gaps)
+    complete_sessions = all_sessions - sessions_with_gaps
+    completion_percentage = (complete_sessions / all_sessions * 100) if all_sessions > 0 else 0
+    
+    # Calculate estimated API calls (one per session with gaps)
+    estimated_api_calls = sessions_with_gaps
+    
+    # Calculate data coverage by type
+    total_circuits = Circuit.objects.count()
+    
+    # Count sessions with each data type
+    sessions_with_weather = Session.objects.filter(
+        race__season=season,
+        id__in=SessionWeather.objects.filter(
+            session__race__season=season
+        ).values_list('session_id', flat=True)
+    ).count()
+    
+    sessions_with_drivers = Session.objects.filter(
+        race__season=season,
+        id__in=SessionResult.objects.filter(
+            session__race__season=season
+        ).values_list('session_id', flat=True).distinct()
+    ).count()
+    
+    sessions_with_telemetry = Session.objects.filter(
+        race__season=season,
+        id__in=Lap.objects.filter(
+            session__race__season=season
+        ).values_list('session_id', flat=True).distinct()
+    ).count()
+    
+    sessions_with_pit_stops = Session.objects.filter(
+        race__season=season,
+        id__in=PitStop.objects.filter(
+            session__race__season=season
+        ).values_list('session_id', flat=True).distinct()
+    ).count()
+    
+    circuits_with_data = Circuit.objects.filter(
+        id__in=Corner.objects.values_list('circuit_id', flat=True).distinct()
+    ).count()
+    
+    # Build data coverage dict
+    data_coverage = {
+        'weather': {
+            'count': sessions_with_weather,
+            'percentage': (sessions_with_weather / all_sessions * 100) if all_sessions > 0 else 0,
+        },
+        'drivers': {
+            'count': sessions_with_drivers,
+            'percentage': (sessions_with_drivers / all_sessions * 100) if all_sessions > 0 else 0,
+        },
+        'telemetry': {
+            'count': sessions_with_telemetry,
+            'percentage': (sessions_with_telemetry / all_sessions * 100) if all_sessions > 0 else 0,
+        },
+        'pit_stops': {
+            'count': sessions_with_pit_stops,
+            'percentage': (sessions_with_pit_stops / all_sessions * 100) if all_sessions > 0 else 0,
+        },
+        'circuit': {
+            'circuits': circuits_with_data,
+            'percentage': (circuits_with_data / total_circuits * 100) if total_circuits > 0 else 0,
+        },
+    }
+    
+    context = {
+        'year': year,
+        'summary': {
+            'total_sessions': all_sessions,
+            'complete_sessions': complete_sessions,
+            'sessions_with_gaps': sessions_with_gaps,
+            'completion_percentage': completion_percentage,
+            'estimated_api_calls': estimated_api_calls,
+            'total_circuits': total_circuits,
+        },
+        'data_coverage': data_coverage,
+        'gaps': gaps,
+    }
+    
+    return render(request, 'analytics/data_status.html', context)
