@@ -20,6 +20,24 @@ from django.utils import timezone
 from django.conf import settings
 
 
+# ---------------------------------------------------------------------------
+# Run context — updated by import_all_seasons_flow before each session so
+# the rate-limit pause notification can show multi-season progress.
+# Empty when running single-year imports (falls back to existing behavior).
+# ---------------------------------------------------------------------------
+_run_context: dict = {}
+
+
+def update_run_context(**kwargs) -> None:
+    """Merge kwargs into the module-level run context dict."""
+    _run_context.update(kwargs)
+
+
+def clear_run_context() -> None:
+    """Reset the run context (call at start and end of a multi-season run)."""
+    _run_context.clear()
+
+
 @task(name="Wait for Rate Limit")
 def wait_for_rate_limit():
     """
@@ -113,70 +131,135 @@ def record_api_call(session_id: int):
 def _send_rate_limit_pause_notification(resume_time):
     """
     Send Slack notification when rate limit pause begins.
-    
-    Includes a fresh gap report to show remaining work.
+
+    If a multi-season run context is set (via update_run_context), includes
+    a rich breakdown of progress so far and what's still outstanding.
+    Falls back to the original single-year "sessions remaining" summary when
+    no context is set.
     """
     from config.notifications import send_slack_notification
-    from analytics.processing.session_processor import get_sessions_to_process
     import pytz
-    
+
     try:
-        # Convert times to CST for display
         cst = pytz.timezone('America/Chicago')
         current_time_cst = timezone.now().astimezone(cst)
         resume_time_cst = resume_time.astimezone(cst)
-        
-        # Get current gaps to show what's left
-        current_year = current_time_cst.year
-        sessions_remaining = get_sessions_to_process(year=current_year, force=False)
-        
-        # Build notification message
+
         blocks = [
             {
                 "type": "header",
                 "text": {
                     "type": "plain_text",
                     "text": "FastF1 Rate Limit - Pausing Import",
-                    "emoji": True
-                }
+                    "emoji": True,
+                },
             },
             {
                 "type": "section",
                 "fields": [
+                    {"type": "mrkdwn", "text": "*Pause Duration:*\n1 hour"},
                     {
                         "type": "mrkdwn",
-                        "text": f"*Pause Duration:*\n1 hour"
+                        "text": f"*Resume Time:*\n{resume_time_cst.strftime('%I:%M:%S %p CST')}",
                     },
-                    {
-                        "type": "mrkdwn",
-                        "text": f"*Resume Time:*\n{resume_time_cst.strftime('%I:%M:%S %p CST')}"
-                    }
-                ]
+                ],
             },
-            {
-                "type": "divider"
-            },
-            {
+            {"type": "divider"},
+        ]
+
+        if _run_context:
+            # Multi-season run — show rich progress summary
+            sessions_done = _run_context.get('sessions_done', 0)
+            sessions_succeeded = _run_context.get('sessions_succeeded', 0)
+            sessions_failed = _run_context.get('sessions_failed', 0)
+            data_extracted = _run_context.get('data_extracted', {})
+            sessions_remaining_by_year = _run_context.get('sessions_remaining_by_year', {})
+            total_remaining = sum(sessions_remaining_by_year.values())
+
+            data_parts = [
+                f"{dtype} ×{count}"
+                for dtype, count in data_extracted.items()
+                if count > 0
+            ]
+            data_str = ' · '.join(data_parts) if data_parts else 'none'
+
+            year_lines = '\n'.join(
+                f"• {year}: {count:>3} sessions"
+                for year in sorted(sessions_remaining_by_year.keys(), reverse=True)
+                if count > 0
+            )
+
+            blocks.append({
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f"* Work Remaining:*\n• {len(sessions_remaining)} sessions left to process\n• Import will resume automatically"
+                    "text": (
+                        f"*This Run So Far*\n"
+                        f"• {sessions_done} sessions processed  "
+                        f"({sessions_succeeded} succeeded · {sessions_failed} failed)\n"
+                        f"• Collected: {data_str}"
+                    ),
+                },
+            })
+            blocks.append({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": (
+                        f"*Still Outstanding*\n"
+                        f"{year_lines}\n"
+                        f"• (total: {total_remaining} sessions remaining)"
+                    ),
+                },
+            })
+            blocks.append({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": (
+                        f"Will resume automatically at {resume_time_cst.strftime('%I:%M %p CST')}.\n"
+                        f"Re-run `collect_all_data` if you stopped the script."
+                    ),
+                },
+            })
+        else:
+            # Single-year run — original summary
+            from analytics.processing.session_processor import get_sessions_to_process
+
+            current_year = current_time_cst.year
+            sessions_remaining = get_sessions_to_process(year=current_year, force=False)
+
+            blocks.append({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": (
+                        f"*Work Remaining:*\n"
+                        f"• {len(sessions_remaining)} sessions left to process\n"
+                        f"• Import will resume automatically"
+                    ),
+                },
+            })
+
+        blocks.append({
+            "type": "context",
+            "elements": [
+                {
+                    "type": "mrkdwn",
+                    "text": (
+                        f"This is normal behavior to respect API limits | "
+                        f"{current_time_cst.strftime('%Y-%m-%d %I:%M:%S %p CST')}"
+                    ),
                 }
-            },
-            {
-                "type": "context",
-                "elements": [
-                    {
-                        "type": "mrkdwn",
-                        "text": f"This is normal behavior to respect API limits | {current_time_cst.strftime('%Y-%m-%d %I:%M:%S %p CST')}"
-                    }
-                ]
-            }
-        ]
-        
+            ],
+        })
+
         send_slack_notification(
-            message=f"⏸️ FastF1 Rate Limit Hit - Pausing for 1 hour. Will resume at {resume_time_cst.strftime('%I:%M %p CST')}",
-            blocks=blocks
+            message=(
+                f"⏸️ FastF1 Rate Limit Hit - Pausing for 1 hour. "
+                f"Will resume at {resume_time_cst.strftime('%I:%M %p CST')}"
+            ),
+            blocks=blocks,
         )
     except Exception as e:
         print(f"Failed to send pause notification: {e}")
