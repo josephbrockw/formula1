@@ -342,3 +342,5 @@ class TestCollectAll(TestCase):
         msg = warning_calls[0][0][0]
         self.assertIn("remaining", msg)
         self.assertIn("processed", msg)
+        self.assertIn("Season status", msg)
+        self.assertIn("2024", msg)

@@ -23,7 +23,7 @@ from core.models import (
 )
 from core.tasks.data_mappers import map_laps, map_session_results, map_weather
 from core.tasks.fastf1_loader import get_event_schedule, load_session
-from core.tasks.gap_detector import find_uncollected_sessions
+from core.tasks.gap_detector import find_uncollected_sessions, get_collection_summary
 from core.tasks.notifier import send_slack_notification
 
 _SESSION_NAME_MAP = {
@@ -216,11 +216,17 @@ def _pause_for_rate_limit(
     run.status = "paused_rate_limit"
     run.save(update_fields=["status"])
     remaining = total - (i + 1)
+    summary = get_collection_summary()
+    season_lines = "\n".join(
+        f"  {year}: {counts['completed']}/{counts['total']} done, {counts['failed']} failed"
+        for year, counts in sorted(summary.items())
+    )
     msg = (
         f"Rate limited at [{i + 1}/{total}] {session.event.event_name} — {session.session_type}. "
         f"Pausing until {resume_at.strftime('%H:%M UTC')}.\n"
         f"Progress: {run.sessions_processed} processed, {run.sessions_skipped} failed, "
-        f"{remaining} remaining."
+        f"{remaining} remaining.\n\n"
+        f"Season status:\n{season_lines}"
     )
     stdout.write(f"⚠️  Rate limited. Slack notified. Pausing until {resume_at.strftime('%H:%M UTC')}.")
     send_slack_notification(msg, level="warning")
