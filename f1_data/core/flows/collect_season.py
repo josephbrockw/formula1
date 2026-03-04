@@ -184,8 +184,11 @@ def _sessions_to_collect(
 
 
 def _is_rate_limit(exc: Exception) -> bool:
+    from fastf1.req import RateLimitExceededError
     from requests.exceptions import HTTPError
 
+    if isinstance(exc, RateLimitExceededError):
+        return True
     return (
         isinstance(exc, HTTPError)
         and getattr(getattr(exc, "response", None), "status_code", None) == 429

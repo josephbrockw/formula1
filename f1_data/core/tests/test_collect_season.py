@@ -344,3 +344,19 @@ class TestCollectAll(TestCase):
         self.assertIn("processed", msg)
         self.assertIn("Season status", msg)
         self.assertIn("2024", msg)
+
+    @patch(f"{FLOW}.time.sleep")
+    @patch(f"{FLOW}.send_slack_notification")
+    @patch(f"{FLOW}.load_session")
+    @patch(f"{FLOW}.get_event_schedule")
+    def test_fastf1_rate_limit_error_triggers_pause(
+        self, mock_schedule, mock_load, mock_notify, mock_sleep
+    ) -> None:
+        from fastf1.req import RateLimitExceededError
+
+        mock_schedule.return_value = make_schedule_dataframe(sessions=["Race"])
+        mock_load.side_effect = [RateLimitExceededError("any API: 500 calls/h"), make_session_mock()]
+        collect_all(years=[2024], force_recollect=False, stdout=_stdout())
+        mock_sleep.assert_called_once_with(61 * 60)
+        scs = SessionCollectionStatus.objects.get(session__session_type="R")
+        self.assertEqual(scs.status, "completed")
