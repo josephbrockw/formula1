@@ -61,6 +61,11 @@ class Command(BaseCommand):
             action='store_true',
             help='Show gap summary and exit without importing any data',
         )
+        parser.add_argument(
+            '--verbose',
+            action='store_true',
+            help='Show full Prefect task logs (default: progress summary only)',
+        )
 
     def handle(self, *args, **options):
         start_year = options['start_year']
@@ -85,6 +90,10 @@ class Command(BaseCommand):
             return
 
         try:
+            import logging
+            if not options.get('verbose'):
+                logging.getLogger('prefect').setLevel(logging.WARNING)
+
             from analytics.flows.import_all_seasons import import_all_seasons_flow
 
             summary = import_all_seasons_flow(
@@ -131,6 +140,11 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS('✅ Status: COMPLETE'))
             elif summary['status'] == 'failed':
                 self.stdout.write(self.style.ERROR('❌ Status: FAILED'))
+            elif summary['status'] == 'rate_limited':
+                self.stdout.write(self.style.WARNING(
+                    '⚠️  Status: RATE LIMITED — API quota exhausted. '
+                    'Re-run collect_all_data to resume from where it left off.'
+                ))
             else:
                 self.stdout.write(
                     self.style.WARNING(f'⚠️  Status: {summary["status"].upper()}')

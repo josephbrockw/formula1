@@ -181,12 +181,16 @@ def save_circuit_to_db(session_id: int, circuit_data: Dict, flow_run_id: Optiona
             f"{counts['corners']} corners, {counts['marshal_lights']} lights, "
             f"{counts['marshal_sectors']} sectors"
         )
-        
-        # Update load status
-        mark_data_loaded(session_id, 'circuit', flow_run_id)
-        
-        return {'session_id': session_id, 'status': 'success', 'counts': counts}
-        
+
+        result = {'session_id': session_id, 'status': 'success', 'counts': counts}
+
     except Exception as e:
         logger.error(f"Failed to save circuit data for session {session_id}: {e}")
-        return {'session_id': session_id, 'status': 'failed', 'error': str(e)}
+        result = {'session_id': session_id, 'status': 'failed', 'error': str(e)}
+
+    try:
+        mark_data_loaded(session_id, 'circuit', flow_run_id)
+    except Exception:
+        pass  # tracking failure never masks a successful data write
+
+    return result

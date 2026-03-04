@@ -19,6 +19,7 @@ This minimizes API calls by:
 from typing import Dict, List, Set, Optional
 from dataclasses import dataclass, field
 from django.db.models import Q, Exists, OuterRef
+from django.utils import timezone
 from prefect import task, get_run_logger
 
 from analytics.models import Season, Race, Session, SessionWeather, Circuit
@@ -248,9 +249,17 @@ def detect_session_data_gaps(season_year: int) -> List[SessionGap]:
     
     gaps = []
     
-    # Get all sessions for the season
+    # Get only past sessions (exclude future races not yet run)
+    now = timezone.now()
     sessions = Session.objects.filter(
-        race__season=season
+        race__season=season,
+    ).filter(
+        Q(session_date_utc__lte=now) |
+        Q(session_date_utc__isnull=True, race__race_date__lt=now.date())
+    ).exclude(
+        session_type__isnull=True
+    ).exclude(
+        session_type=''
     ).select_related('race', 'race__circuit').order_by(
         'race__round_number', 'session_number'
     )

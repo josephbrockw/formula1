@@ -5,16 +5,48 @@ These tasks handle the actual API calls to load session data,
 with automatic caching via Prefect to avoid duplicate loads.
 """
 
-from datetime import timedelta
+import contextlib
+import threading
 from typing import Any, Optional
 
 import fastf1
+from fastf1.req import RateLimitExceededError as _FastF1RateLimitError
 from django.conf import settings
 from prefect import task, get_run_logger
-from prefect.cache_policies import INPUTS
+from prefect.cache_policies import NONE
 
 from .utils import get_fastf1_session_identifier, generate_session_cache_key
 from .rate_limiter import record_api_call, wait_for_rate_limit
+
+
+@contextlib.contextmanager
+def _detect_rate_limit():
+    """
+    Detect if RateLimitExceededError was raised inside session.load().
+
+    FastF1 catches RateLimitExceededError internally and logs warnings,
+    so the exception never propagates out of session.load(). This context
+    manager patches the rate limiter class to set a flag when the limit
+    fires, letting us detect it after session.load() returns and re-raise.
+    """
+    import fastf1.req as _req
+
+    _hit = threading.Event()
+    _limiter_cls = _req._CallsPerIntervalLimitRaise
+    _original_limit = _limiter_cls.limit
+
+    def _patched_limit(self):
+        try:
+            return _original_limit(self)
+        except _req.RateLimitExceededError:
+            _hit.set()
+            raise
+
+    _limiter_cls.limit = _patched_limit
+    try:
+        yield _hit
+    finally:
+        _limiter_cls.limit = _original_limit
 
 
 def session_cache_key_fn(context, parameters):
@@ -37,12 +69,18 @@ class NonRetryableError(Exception):
     pass
 
 
+def _should_retry_load_session(task, task_run, state) -> bool:
+    """Don't retry NonRetryableError (permanent failures like missing session types)."""
+    exc = state.result(raise_on_failure=False)
+    return not isinstance(exc, NonRetryableError)
+
+
 @task(
     name="Load FastF1 Session",
-    cache_policy=INPUTS,
-    cache_expiration=timedelta(hours=1),
+    cache_policy=NONE,
     retries=settings.FASTF1_TASK_RETRIES,
-    retry_delay_seconds=settings.FASTF1_TASK_RETRY_DELAY
+    retry_delay_seconds=settings.FASTF1_TASK_RETRY_DELAY,
+    retry_condition_fn=_should_retry_load_session,
 )
 def load_fastf1_session(
     year: int,
@@ -87,8 +125,17 @@ def load_fastf1_session(
     # Convert Django session type to FastF1 identifier
     fastf1_identifier = get_fastf1_session_identifier(session_type)
     
-    # Use event name for testing events, round number for regular events
-    event_identifier = event_name if event_name else round_num
+    if round_num == 0:
+        # Testing events can't be accessed by round number in FastF1
+        # (raises "Cannot get testing event by round number!").
+        # Look up the canonical EventName from the schedule instead.
+        schedule = fastf1.get_event_schedule(year, include_testing=True)
+        testing_rows = schedule[schedule['RoundNumber'] == 0]
+        if testing_rows.empty:
+            raise NonRetryableError(f"No testing event found in {year} FastF1 schedule")
+        event_identifier = testing_rows.iloc[0]['EventName']
+    else:
+        event_identifier = event_name if event_name else round_num
     event_display = f"{round_num} {event_name}" if event_name else f"Round {round_num}"
     
     logger.info(
@@ -96,8 +143,8 @@ def load_fastf1_session(
         f"(identifier: {fastf1_identifier})"
     )
     
-    # Retry loop for rate limit handling
-    max_rate_limit_retries = 3
+    # Retry loop for rate limit handling (1 hour between attempts)
+    max_rate_limit_retries = 8
     
     for attempt in range(max_rate_limit_retries):
         try:
@@ -105,9 +152,16 @@ def load_fastf1_session(
             # Use event_name for testing events, round_num for regular races
             f1_session = fastf1.get_session(year, event_identifier, fastf1_identifier)
             
-            # Load session data (this downloads telemetry)
+            # Load session data (this downloads telemetry).
+            # FastF1 catches RateLimitExceededError internally and logs warnings
+            # instead of propagating — use _detect_rate_limit() to surface it.
             logger.info(f"Calling session.load() - this may take 30-60 seconds...")
-            f1_session.load()
+            with _detect_rate_limit() as _rate_limit_hit:
+                f1_session.load()
+            if _rate_limit_hit.is_set():
+                raise _FastF1RateLimitError(
+                    "any API: rate limit hit inside session.load()"
+                )
             
             # Record API call for rate limit tracking
             # This tracks function calls, not HTTP requests
@@ -120,7 +174,7 @@ def load_fastf1_session(
             
             return f1_session
             
-        except fastf1.req.RateLimitExceededError as e:
+        except _FastF1RateLimitError as e:
             logger.error(f"❌ Rate limit exceeded by FastF1 (attempt {attempt + 1}/{max_rate_limit_retries})")
             logger.error(f"   Error: {e}")
             
@@ -146,6 +200,7 @@ def load_fastf1_session(
                 'no data available',
                 'invalid round',
                 'invalid event',
+                'by round number',       # "Cannot get testing event by round number!"
             ]
             
             if any(keyword in error_msg for keyword in non_retryable_keywords):

@@ -21,7 +21,9 @@ class ImportConstructorPerformanceCommandTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         """Set up test data once for all tests"""
-        cls.season = Season.objects.create(year=2025, name='2025 Season')
+        from datetime import date
+        year = date.today().year
+        cls.season = Season.objects.create(year=year, name=f'{year} Season')
         cls.fixtures_dir = Path(__file__).parent / 'fixtures'
         cls.sample_file = cls.fixtures_dir / 'sample-constructors-performance.csv'
     

@@ -39,10 +39,6 @@ class Command(BaseCommand):
         # Determine year
         year = options.get('year') or date.today().year
         
-        # Get season
-        season = get_season(year)
-        self.stdout.write(f"Found season: {season}")
-        
         # Resolve CSV file
         csv_file = resolve_csv_file(
             options,
@@ -50,6 +46,10 @@ class Command(BaseCommand):
             '*-all-constructors-performance.csv'
         )
         self.stdout.write(f"Found performance file: {csv_file.name}")
+
+        # Get season
+        season = get_season(year)
+        self.stdout.write(f"Found season: {season}")
         
         # Import the data
         stats = self.import_performance_data(csv_file, season)

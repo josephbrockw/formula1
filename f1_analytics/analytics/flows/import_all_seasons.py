@@ -140,12 +140,7 @@ def import_all_seasons_flow(
                 sessions_remaining_by_year=_count_by_year(all_gaps[i:]),
             )
 
-            pct = int(i / total_sessions * 100) if total_sessions > 0 else 0
-            logger.info(
-                f"\nSession {i + 1}/{total_sessions}: "
-                f"{gap.year} Round {gap.round_number} {gap.session_type} "
-                f"({pct}% complete)"
-            )
+            print(f"[{i + 1}/{total_sessions}] {gap.year} R{gap.round_number} {gap.session_type}")
 
             result = process_session_gap(gap, force)
             summary['sessions_processed'] += 1
@@ -157,16 +152,16 @@ def import_all_seasons_flow(
                     if data_type in summary['data_extracted']:
                         summary['data_extracted'][data_type] += 1
                 if result['status'] == 'success':
-                    logger.info(f"✅ Success — extracted: {', '.join(result['extracted'])}")
+                    print(f"  ✅ {', '.join(result['extracted'])}")
                 else:
-                    logger.warning(
-                        f"⚠️  Partial — extracted: {', '.join(result['extracted'])}, "
-                        f"failed: {', '.join(result['failed'])}"
+                    print(
+                        f"  ⚠️  Partial — {', '.join(result['extracted'])} "
+                        f"/ failed: {', '.join(result['failed'])}"
                     )
             else:
                 summary['sessions_failed'] += 1
                 summary['by_year'][gap.year]['failed'] += 1
-                logger.error(f"❌ Failed — {result.get('error', 'Unknown error')}")
+                print(f"  ❌ Failed — {result.get('error', 'Unknown error')}")
 
         summary['status'] = 'complete'
 

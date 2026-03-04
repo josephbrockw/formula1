@@ -132,7 +132,17 @@ AUTH_USER_MODEL = 'analytics.User'
 
 
 # FastF1 API Task Configuration
-# These control retry behavior for Prefect tasks that call FastF1 API
-# Tests override these at runtime using task.with_options() for faster execution
-FASTF1_TASK_RETRIES = 3  # Number of retry attempts for transient failures
+# These control retry behavior for Prefect tasks that call FastF1 API.
+# Override FASTF1_TASK_RETRY_DELAY in your environment or a local settings file.
+FASTF1_TASK_RETRIES = 3   # Number of retry attempts for transient failures
 FASTF1_TASK_RETRY_DELAY = 60  # Seconds to wait between retry attempts
+FASTF1_RATE_LIMIT_WAIT = 3600  # Seconds to pause when rate limit is hit (1 hour)
+
+# During test runs, cut all waits to zero so no test ever sleeps.
+# The check uses sys.argv so the override is in place before any task module
+# is imported (task decorators read these settings at module-import time).
+import sys  # noqa: E402
+if 'test' in sys.argv:
+    FASTF1_TASK_RETRIES = 1
+    FASTF1_TASK_RETRY_DELAY = 0
+    FASTF1_RATE_LIMIT_WAIT = 0

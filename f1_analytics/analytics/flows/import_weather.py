@@ -99,9 +99,10 @@ def save_weather_to_db(session_id: int, weather_data: Dict, flow_run_id: Optiona
     
     logger = get_run_logger()
     
+    result = {'session_id': session_id, 'status': 'failed'}
     try:
         session = Session.objects.get(id=session_id)
-        
+
         # Create or update SessionWeather
         weather, created = SessionWeather.objects.update_or_create(
             session=session,
@@ -116,18 +117,22 @@ def save_weather_to_db(session_id: int, weather_data: Dict, flow_run_id: Optiona
                 'data_source': 'fastf1',
             }
         )
-        
+
         action = "Created" if created else "Updated"
         logger.info(f"{action} weather for {session}: {weather.weather_summary}")
-        
-        # Update load status
-        mark_data_loaded(session_id, 'weather', flow_run_id)
-        
-        return {'session_id': session_id, 'status': 'success', 'created': created}
-        
+
+        result = {'session_id': session_id, 'status': 'success', 'created': created}
+
     except Exception as e:
         logger.error(f"Failed to save weather for session {session_id}: {e}")
-        return {'session_id': session_id, 'status': 'failed', 'error': str(e)}
+        result['error'] = str(e)
+
+    try:
+        mark_data_loaded(session_id, 'weather', flow_run_id)
+    except Exception:
+        pass  # tracking failure never masks a successful data write
+
+    return result
 
 
 @task(name="Process Session Weather")

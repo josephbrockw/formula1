@@ -51,7 +51,7 @@ def wait_for_rate_limit():
     """
     logger = get_run_logger()
     
-    wait_seconds = 3600  # 1 hour
+    wait_seconds = settings.FASTF1_RATE_LIMIT_WAIT
     
     resume_time = timezone.now() + timedelta(seconds=wait_seconds)
     

@@ -248,10 +248,16 @@ def process_session_gap(gap: SessionGap, force: bool = False) -> Dict:
             result['status'] = 'partial'
         
     except Exception as e:
+        try:
+            from fastf1.req import RateLimitExceededError
+            if isinstance(e, RateLimitExceededError):
+                raise
+        except ImportError:
+            pass
         logger.error(f"Failed to process session gap: {e}")
         result['status'] = 'failed'
         result['error'] = str(e)
-    
+
     return result
 
 
@@ -347,8 +353,23 @@ def import_fastf1_flow(
             )
             
             # Process the session
-            # If FastF1 hits rate limit, loaders.py will auto-pause for 1 hour and retry
-            result = process_session_gap(gap, force)
+            # If FastF1 hits rate limit and all retries are exhausted, RateLimitExceededError propagates
+            try:
+                from fastf1.req import RateLimitExceededError as _RateLimitExceededError
+            except ImportError:
+                _RateLimitExceededError = None
+
+            try:
+                result = process_session_gap(gap, force)
+            except Exception as _session_exc:
+                if _RateLimitExceededError and isinstance(_session_exc, _RateLimitExceededError):
+                    logger.error("Rate limit exhausted after all retries — stopping import.")
+                    logger.info("Re-run to resume: gap detection will skip already-processed sessions.")
+                    summary['status'] = 'rate_limited'
+                    if notify:
+                        send_rate_limited_notification(summary)
+                    break
+                raise
             summary['sessions_processed'] += 1
             
             if result['status'] == 'success':
@@ -457,6 +478,42 @@ async def send_completion_notification(summary: Dict):
     try:
         await send_slack_notification_async(message, blocks)
         logger.info("Slack notification sent successfully")
+    except Exception as e:
+        logger.warning(f"Failed to send Slack notification: {e}")
+
+
+@task(name="Send Rate Limited Notification")
+async def send_rate_limited_notification(summary: Dict):
+    """Send Slack notification when import stops due to exhausted rate limit"""
+    logger = get_run_logger()
+
+    message = f"⏳ FastF1 Import Rate Limited - Season {summary['year']}"
+
+    blocks = [
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": (
+                    f"*FastF1 Import Stopped — Rate Limit Exhausted*\n"
+                    f"*Season:* {summary['year']}\n"
+                    f"Re-run `collect_all_data` to resume; already-imported sessions will be skipped."
+                )
+            }
+        },
+        {
+            "type": "section",
+            "fields": [
+                {"type": "mrkdwn", "text": f"*Sessions Processed:*\n{summary['sessions_processed']}"},
+                {"type": "mrkdwn", "text": f"*Succeeded:*\n{summary['sessions_succeeded']}"},
+                {"type": "mrkdwn", "text": f"*Failed:*\n{summary['sessions_failed']}"}
+            ]
+        }
+    ]
+
+    try:
+        await send_slack_notification_async(message, blocks)
+        logger.info("Rate limit notification sent successfully")
     except Exception as e:
         logger.warning(f"Failed to send Slack notification: {e}")
 

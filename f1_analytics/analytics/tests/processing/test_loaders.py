@@ -33,7 +33,10 @@ class MockFastF1Session:
         self.name = name
         self.date = date or datetime(2025, 3, 16, 5, 0, 0)
         self._loaded = False
-    
+        from unittest.mock import Mock
+        self.event = Mock()
+        self.event.EventName = name
+
     def load(self):
         """Mock load method"""
         self._loaded = True

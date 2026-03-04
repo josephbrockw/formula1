@@ -21,6 +21,8 @@ class MockFastF1Session:
     """Mock FastF1 Session with weather data"""
     def __init__(self, name='Test Session', has_weather=True):
         self.name = name
+        self.event = mock.Mock()
+        self.event.EventName = name
         if has_weather:
             import pandas as pd
             self.weather_data = pd.DataFrame({
@@ -221,11 +223,16 @@ class ImportWeatherFlowIntegrationTests(FastPrefectTasksMixin, TestCase):
             retry_delay_seconds=1,
             cache_policy=NONE
         )
-        
+
         # Patch where the flow imports and uses it
         import analytics.flows.import_weather as flow_module
         with mock.patch.object(flow_module, 'load_fastf1_session', no_cache_task):
             with prefect_test_harness():
+                import pandas as pd
+                mock_fastf1.get_event_schedule.return_value = pd.DataFrame({
+                    'RoundNumber': [0],
+                    'EventName': ['Pre-Season Testing'],
+                })
                 mock_f1_session = MockFastF1Session()
                 mock_fastf1.get_session.return_value = mock_f1_session
                 

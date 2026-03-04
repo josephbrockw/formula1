@@ -320,21 +320,25 @@ def save_telemetry_to_db(session_id: int, telemetry_data: Dict, f1_session=None,
             f"Saved telemetry for {session}: "
             f"{laps_created} laps, {telemetry_created} telemetry, {pit_stops_created} pit stops"
         )
-        
-        # Update load status
-        mark_data_loaded(session_id, 'telemetry', flow_run_id)
-        
-        return {
+
+        result = {
             'session_id': session_id,
             'status': 'success',
             'laps_created': laps_created,
             'telemetry_created': telemetry_created,
-            'pit_stops_created': pit_stops_created
+            'pit_stops_created': pit_stops_created,
         }
-        
+
     except Exception as e:
         logger.error(f"Failed to save telemetry for session {session_id}: {e}")
-        return {'session_id': session_id, 'status': 'failed', 'error': str(e)}
+        result = {'session_id': session_id, 'status': 'failed', 'error': str(e)}
+
+    try:
+        mark_data_loaded(session_id, 'telemetry', flow_run_id)
+    except Exception:
+        pass  # tracking failure never masks a successful data write
+
+    return result
 
 
 def _to_seconds(timedelta_val) -> Optional[float]:
