@@ -184,9 +184,9 @@ def _send_rate_limit_pause_notification(resume_time):
             data_str = ' · '.join(data_parts) if data_parts else 'none'
 
             year_lines = '\n'.join(
-                f"• {year}: {count:>3} sessions"
-                for year in sorted(sessions_remaining_by_year.keys(), reverse=True)
-                if count > 0
+                f"• {year}: {cnt:>3} sessions"
+                for year, cnt in sorted(sessions_remaining_by_year.items(), reverse=True)
+                if cnt > 0
             )
 
             blocks.append({

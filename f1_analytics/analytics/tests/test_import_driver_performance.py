@@ -4,6 +4,7 @@ Integration tests for import_driver_performance command.
 Tests the full import workflow using sample CSV files.
 """
 
+from datetime import date
 from pathlib import Path
 from io import StringIO
 from decimal import Decimal
@@ -17,11 +18,12 @@ from analytics.models import (
 
 class ImportDriverPerformanceCommandTests(TestCase):
     """Tests for import_driver_performance management command"""
-    
+
     @classmethod
     def setUpTestData(cls):
         """Set up test data once for all tests"""
-        cls.season = Season.objects.create(year=2025, name='2025 Season')
+        cls.year = date.today().year
+        cls.season = Season.objects.create(year=cls.year, name=f'{cls.year} Season')
         cls.fixtures_dir = Path(__file__).parent / 'fixtures'
         cls.sample_file = cls.fixtures_dir / 'sample-drivers-performance.csv'
     
