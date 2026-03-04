@@ -1,0 +1,4 @@
+django>=5.0
+fastf1>=3.3
+requests
+python-dotenv
