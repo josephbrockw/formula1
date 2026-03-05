@@ -120,11 +120,57 @@ For each (driver, event) pair, the feature store returns a flat `dict[str, float
 
 ---
 
+## Step 3 — XGBoost Performance Predictor v1
+
+**Location:** `f1_data/predictions/predictors/`
+
+**What was built:**
+
+- `predictions/predictors/base.py` — `PerformancePredictor` Protocol
+- `predictions/predictors/xgboost_v1.py` — `XGBoostPredictor`, `build_training_dataset`, `walk_forward_splits`
+- `predictions/tests/test_xgboost_v1.py` — 16 tests
+
+**New dependencies:** `xgboost==3.2.0`, `scikit-learn>=1.4` added to `requirements.txt`. macOS also requires `brew install libomp` for XGBoost's OpenMP runtime.
+
+**How XGBoost works:**
+
+Gradient boosting builds an ensemble of decision trees sequentially. Each new tree is trained to correct the errors of the combined previous trees. After 100 trees (our default), the prediction is their weighted sum. This handles non-linear relationships well — e.g. the fantasy point difference between P1 and P2 (7 pts) vs P11 and P12 (0 pts) is non-linear and a linear model would struggle.
+
+**What `XGBoostPredictor` does:**
+
+Trains two separate `XGBRegressor` models — one predicting `finishing_position`, one predicting `fantasy_points`. Separate models are simpler and work well because the targets, while correlated, diverge when bonuses (fastest lap, Driver of the Day) are involved.
+
+| Method | Description |
+|--------|-------------|
+| `fit(X, y)` | Trains both models. `X` is the features DataFrame (including `driver_id`). `y` has `finishing_position` and `fantasy_points` columns. After fitting, computes residual std dev for confidence bounds. |
+| `predict(features)` | Returns a DataFrame with `driver_id`, `predicted_position`, `predicted_fantasy_points`, `confidence_lower`, `confidence_upper`. |
+
+**`build_training_dataset(events, feature_store)`**
+
+Iterates over historical events, calls `get_all_driver_features` for each, and pairs features with actual `SessionResult.position` and `FantasyDriverScore.race_total`. Rows are skipped when either target is missing. Returns `(X, y)` DataFrames.
+
+**`walk_forward_splits(events, min_train=5)`**
+
+Generator that yields `(train_events, test_event)` pairs. With 10 events and `min_train=5`, yields 5 splits where training data grows by one race each time and the test event is always in the future. The backtester (Step 5) uses this to drive evaluation.
+
+**Confidence bounds (v1 simplification):**
+
+After `fit()`, computes the standard deviation of prediction errors on the training set. Uses `predicted_points ± 1 std dev` as confidence bounds. This is a lower bound on real error (training data is easier than test data) but gives the optimizer a rough uncertainty signal. v2 will use proper quantile regression (`objective='reg:quantileerror'`).
+
+**Key decisions:**
+
+- **`XGBRegressor` via scikit-learn API:** XGBoost has a native API and a scikit-learn compatible API. We use the sklearn API (`XGBRegressor`) because it follows the familiar `fit/predict` pattern and integrates with sklearn utilities in future steps.
+- **`verbosity=0`:** Suppresses XGBoost's training output. By default it prints progress to stdout on every fit call, which clutters management command output.
+- **`driver_id` stripped before training:** The feature DataFrame includes a `driver_id` column for identification, but it must not be fed to the model as a feature (it's an arbitrary integer PK, not a meaningful signal). The predictor learns which columns are features at `fit()` time and uses those same columns at `predict()` time.
+- **Two models, not one multi-output model:** Sklearn's `MultiOutputRegressor` wraps a single model for multiple targets. Two separate models are equivalent but easier to inspect and tune independently.
+
+---
+
 ## What Is Not Yet Built
 
 | Step | What | Status |
 |------|------|--------|
-| Step 3 | XGBoost performance predictor | todo |
+| Step 3 | XGBoost performance predictor | done |
 | Step 4 | Greedy knapsack optimizer | todo |
 | Step 5 | Walk-forward backtester | todo |
 | Step 6 | Management commands (predict_race, optimize_lineup, backtest) | todo |
