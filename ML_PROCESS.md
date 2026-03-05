@@ -302,11 +302,69 @@ All logic lives in the layer modules already built (Steps 2–5). The commands a
 
 ---
 
+---
+
+## Step 7 — Fantasy Data Import
+
+**Location:** `f1_data/predictions/management/commands/`, `f1_data/predictions/price_calculator.py`
+
+**What was built:**
+
+### `predictions/price_calculator.py` — Pure price formula functions
+
+Implements the 2025 F1 Fantasy price change algorithm as pure, testable functions:
+
+| Function | Description |
+|----------|-------------|
+| `classify_performance(avg_ppm)` | Maps AvgPPM to "great"/"good"/"poor"/"terrible" |
+| `compute_price_change(avg_ppm, current_price)` | Returns price change in $M (A-Tier ≥$19M, B-Tier <$19M) |
+| `compute_avg_ppm(recent)` | Computes rolling average PPM from last 1–3 races |
+| `next_price(current_price, avg_ppm)` | Returns (price_change, new_price) with $3M–$34M clamp |
+
+**The 2025 algorithm:**
+- AvgPPM = mean of (race_total / price_at_that_race) over last 1-3 races (no zero-padding for early rounds)
+- >1.2: Great, >0.9: Good, >0.6: Poor, ≤0.6: Terrible
+- A-Tier (≥$19M): ±0.3/±0.1. B-Tier (<$19M): ±0.6/±0.2
+
+### `import_fantasy_csv` — `python manage.py import_fantasy_csv --dir data/2025/`
+
+Scans a directory for Chrome extension CSV exports and imports them. Detects file type by filename suffix:
+
+| File pattern | Creates |
+|---|---|
+| `YYYY-MM-DD-drivers.csv` | `FantasyDriverPrice` (price snapshot per driver per event) |
+| `YYYY-MM-DD-constructors.csv` | `FantasyConstructorPrice` |
+| `YYYY-MM-DD-all-drivers-performance.csv` | `FantasyDriverScore` (one row per scoring line item) |
+| `YYYY-MM-DD-all-constructors-performance.csv` | `FantasyConstructorScore` |
+
+**Key decisions:**
+- Snapshot date → event: finds the next upcoming event after the snapshot date (prices are taken before the race). Falls back to most recent past event if no upcoming event exists.
+- Driver name matching: `Driver.full_name__iexact` — exact match on "Lando Norris" format.
+- Race name matching for performance CSVs: `event_name__icontains` — "Australia" matches "Australian Grand Prix", "Saudi Arabia" matches "Saudi Arabian Grand Prix".
+- `update_or_create` throughout — safe to re-run; reruns update stale records.
+
+### `compute_fantasy_prices` — `python manage.py compute_fantasy_prices --year 2024 --driver-prices data/2024/starting_driver_prices.csv`
+
+Computes all historical `FantasyDriverPrice` / `FantasyConstructorPrice` records from starting prices + existing `FantasyDriverScore` data using the 2025 formula.
+
+**Starting prices CSV format** (no header, just code and price):
+```
+NOR,28.0
+VER,30.0
+HAM,24.5
+```
+
+The command chains prices forward race-by-race: price at race N uses AvgPPM computed from races 1..N-1. Uses `bulk_create` after deleting existing records for the season (idempotent). `pick_percentage` and `season_fantasy_points` are set to 0 (not available for computed prices — only real Chrome extension snapshots have them).
+
+**compute_fantasy_points (from raw FastF1 data) is NOT yet built** — this requires computing qualifying positions, fastest lap detection, overtake counting, etc. from FastF1 lap data. Deferred as it's significantly more complex.
+
+---
+
 ## What Is Not Yet Built
 
 | Step | What | Status |
 |------|------|--------|
-| Step 6 | Management commands (predict_race, optimize_lineup, backtest) | done |
-| Step 7 | import_fantasy_csv management command | todo |
+| Step 7 | Fantasy data import (import_fantasy_csv, compute_fantasy_prices) | done |
+| Step 7b | compute_fantasy_points (from raw FastF1 data) | deferred |
 | Step 8 | Price predictor v1 (heuristic) | todo |
 | Step 9 | Slack integration | todo |

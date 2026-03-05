@@ -1,0 +1,29 @@
+# 2025 pre-season driver starting prices ($M) — verify against f1fantasytools.com
+# Format: driver_code,price
+# Driver code must match Driver.code in the DB (three-letter FastF1 code)
+VER,28.4
+LAW,18
+LEC,25.9
+SAI,13.1
+HAM,24.2
+RUS,21
+NOR,29
+PIA,23
+ALO,8.8
+STR,8.1
+GAS,11.8
+OCO,7.3
+HUL,6.4
+MAG,8.0
+ALB,12
+SAR,6.0
+TSU,9.6
+RIC,8.5
+BOT,7.0
+ZHO,7.0
+ANT,18.4
+BEA,6.7
+HAD,6.2
+BOR,6
+COL,4.5
+DOO,7.2

@@ -1,0 +1,14 @@
+# 2024 pre-season constructor starting prices ($M) — verify against f1fantasytools.com
+# Format: constructor_name,price
+# Constructor name must match Team.name in the DB exactly (check with the DB query below)
+# Query to see team names: python manage.py shell -c "from core.models import Team; print([t.name for t in Team.objects.filter(season__year=2024)])"
+Red Bull Racing,27.9
+Ferrari,19.3
+McLaren,23.2
+Mercedes,20.1
+Aston Martin,13.6
+Alpine,8.4
+Williams,6.3
+RB,8.5
+Haas F1 Team,6.3
+Kick Sauber,6.6
