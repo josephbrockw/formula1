@@ -166,12 +166,50 @@ After `fit()`, computes the standard deviation of prediction errors on the train
 
 ---
 
+---
+
+## Step 4 — Greedy Lineup Optimizer v1
+
+**Location:** `f1_data/predictions/optimizers/`
+
+**What was built:**
+
+- `predictions/optimizers/base.py` — `Lineup` frozen dataclass + `LineupOptimizer` Protocol
+- `predictions/optimizers/greedy_v1.py` — `GreedyOptimizer` + `_pick_greedily` helper
+- `predictions/tests/test_greedy_v1.py` — 17 tests
+
+**The optimisation problem:**
+
+Given ~20 drivers and ~10 constructors with predicted fantasy scores and prices, pick 5 drivers + 2 constructors within a $100M budget to maximise total fantasy points. This is a variant of the **0/1 knapsack problem** (each player can only be picked once). Exact solution requires checking C(20,5) × C(10,2) = 697,680 combinations — feasible but overkill for v1.
+
+**Greedy approach:**
+
+1. Score every player by `value = predicted_fantasy_points / price` (points per dollar)
+2. Sort by value descending
+3. Pick greedily with **budget lookahead**: before picking player i, verify that `player.price + cheapest(slots_left − 1 remaining players)` fits within the remaining budget. This prevents committing to an expensive early pick that makes remaining slots unaffordable.
+
+**DRS Boost rule:**
+
+The DRS Boost driver scores double their points. Total formula: `sum(driver pts) + sum(constructor pts) + drs_driver_pts`. Always assign DRS to the highest-scoring driver in the lineup.
+
+**Constructor budget reservation:**
+
+Before picking drivers, reserve `sum(cheapest 2 constructor prices)` from the budget. This prevents spending too much on drivers and having nothing left for constructors.
+
+**Key decisions:**
+
+- **Greedy not brute-force:** Greedy is O(n log n). For a weekly tool where we run it once, brute force would also work, but greedy is easier to reason about and fast enough. v2 can use integer linear programming (PuLP/scipy) for optimality guarantees.
+- **Two-phase picking:** Drivers first (with constructor budget reserved), then constructors from remaining spend. The two categories don't overlap so they can be picked independently.
+- **Budget lookahead uses future candidates only:** Once we pass a candidate in value-sorted order, we never revisit it. So "cheapest remaining options" = cheapest candidates after the current one in the sorted list.
+- **Value = pts/price not just pts:** A driver with 40pts at $10M is better value than 50pts at $20M if other slots need filling. Value ranking finds efficient combinations.
+
+---
+
 ## What Is Not Yet Built
 
 | Step | What | Status |
 |------|------|--------|
-| Step 3 | XGBoost performance predictor | done |
-| Step 4 | Greedy knapsack optimizer | todo |
+| Step 4 | Greedy knapsack optimizer | done |
 | Step 5 | Walk-forward backtester | todo |
 | Step 6 | Management commands (predict_race, optimize_lineup, backtest) | todo |
 | Step 7 | import_fantasy_csv management command | todo |

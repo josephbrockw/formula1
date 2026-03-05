@@ -81,5 +81,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # FastF1
 FASTF1_CACHE_DIR = os.path.join(BASE_DIR, 'fastf1_cache')
 
+# Fantasy lineup budget in $M. F1 Fantasy increases this over time as driver
+# prices inflate across seasons. Update here when the game changes it.
+LINEUP_BUDGET: float = 100.0
+
 # Slack
 SLACK_WEBHOOK_URL = os.environ.get('SLACK_WEBHOOK_URL', '')
