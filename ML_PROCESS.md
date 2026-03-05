@@ -205,12 +205,58 @@ Before picking drivers, reserve `sum(cheapest 2 constructor prices)` from the bu
 
 ---
 
+---
+
+## Step 5 — Walk-forward Backtester
+
+**Location:** `f1_data/predictions/evaluation/`
+
+**What was built:**
+
+- `predictions/evaluation/backtester.py` — `Backtester`, `BacktestResult`, `RaceBacktestResult`, and helpers
+- New factories in `predictions/tests/factories.py` — `make_driver_price`, `make_constructor_price`, `make_constructor_score`
+- `predictions/tests/test_backtester.py` — 15 tests
+
+**What the backtester does:**
+
+For each race in a walk-forward split (train on races 1..N, test on N+1):
+1. Build training dataset from train events
+2. Fit the predictor
+3. Get features for test event → predict
+4. Compare predictions against actual results (MAE)
+5. If price data is available: optimize lineup → score it → compute the oracle (optimal) lineup
+
+**Metrics per race:**
+
+| Metric | Description |
+|--------|-------------|
+| `mae_position` | Mean absolute error on finishing position predictions |
+| `mae_fantasy_points` | Mean absolute error on fantasy points predictions |
+| `lineup_predicted_points` | Total score the optimizer expected (from predictions) |
+| `lineup_actual_points` | What that lineup actually scored post-race |
+| `optimal_actual_points` | Best possible lineup score with perfect knowledge |
+
+**The oracle ceiling:**
+
+To compute `optimal_actual_points`, we run the optimizer a second time but with actual points as the "predictions." This tells us: if we had a perfect model, what's the most we could score? The gap between `lineup_actual_points` and `optimal_actual_points` shows how much prediction error is costing us in fantasy points.
+
+**Constructor predictions without a constructor predictor:**
+
+We don't have a dedicated constructor model yet. Instead, predicted constructor points = sum of the two team drivers' predicted fantasy points. This is a reasonable proxy since constructors score the combined points of their drivers. A proper constructor model (pit stop speed, Q3 progression) is a future upgrade.
+
+**Key decisions:**
+
+- **`run()` takes events, not seasons:** The backtester is a pure evaluation function. The management command translates seasons → events and passes them in. This keeps the backtester testable without a full season in the DB.
+- **Lineup metrics optional:** When `FantasyDriverPrice` / `FantasyConstructorPrice` are missing for an event (e.g. historical seasons we didn't scrape), the backtester skips lineup metrics but still computes MAE metrics. Fields are `None` rather than silently defaulting to 0.
+- **`BacktestResult` as a dataclass with properties:** `mean_mae_position`, `total_lineup_points`, etc. are computed lazily from the list of `RaceBacktestResult` objects rather than stored separately. This keeps the data and the derived aggregates in one place.
+
+---
+
 ## What Is Not Yet Built
 
 | Step | What | Status |
 |------|------|--------|
-| Step 4 | Greedy knapsack optimizer | done |
-| Step 5 | Walk-forward backtester | todo |
+| Step 5 | Walk-forward backtester | done |
 | Step 6 | Management commands (predict_race, optimize_lineup, backtest) | todo |
 | Step 7 | import_fantasy_csv management command | todo |
 | Step 8 | Price predictor v1 (heuristic) | todo |

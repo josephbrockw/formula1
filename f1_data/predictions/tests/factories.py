@@ -3,7 +3,12 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from core.models import Circuit, Driver, Event, Lap, Season, Session, SessionResult, Team
-from predictions.models import FantasyDriverScore
+from predictions.models import (
+    FantasyConstructorPrice,
+    FantasyConstructorScore,
+    FantasyDriverPrice,
+    FantasyDriverScore,
+)
 
 
 def make_season(year: int = 2024) -> Season:
@@ -111,6 +116,57 @@ def make_fantasy_score(
 ) -> FantasyDriverScore:
     return FantasyDriverScore.objects.create(
         driver=driver,
+        event=event,
+        event_type=event_type,
+        scoring_item=scoring_item,
+        points=points,
+        race_total=race_total,
+        season_total=race_total,
+    )
+
+
+def make_driver_price(
+    driver: Driver,
+    event: Event,
+    price: float = 10.0,
+) -> FantasyDriverPrice:
+    return FantasyDriverPrice.objects.create(
+        driver=driver,
+        event=event,
+        snapshot_date=event.event_date,
+        price=price,
+        price_change=0.0,
+        pick_percentage=10.0,
+        season_fantasy_points=0,
+    )
+
+
+def make_constructor_price(
+    team: Team,
+    event: Event,
+    price: float = 15.0,
+) -> FantasyConstructorPrice:
+    return FantasyConstructorPrice.objects.create(
+        team=team,
+        event=event,
+        snapshot_date=event.event_date,
+        price=price,
+        price_change=0.0,
+        pick_percentage=10.0,
+        season_fantasy_points=0,
+    )
+
+
+def make_constructor_score(
+    team: Team,
+    event: Event,
+    race_total: int,
+    event_type: str = "race",
+    scoring_item: str = "Race Position",
+    points: int = 1,
+) -> FantasyConstructorScore:
+    return FantasyConstructorScore.objects.create(
+        team=team,
         event=event,
         event_type=event_type,
         scoring_item=scoring_item,
