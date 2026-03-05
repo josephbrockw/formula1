@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 import fastf1
 
 
@@ -10,4 +12,5 @@ def get_event_schedule(year: int) -> fastf1.events.EventSchedule:
 def load_session(year: int, round_number: int, session_type: str) -> fastf1.core.Session:
     session = fastf1.get_session(year, round_number, session_type)
     session.load(laps=True, telemetry=False, weather=True, messages=False)
+    time.sleep(1)
     return session
