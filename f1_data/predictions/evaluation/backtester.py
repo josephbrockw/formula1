@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import pandas as pd
@@ -73,15 +74,21 @@ class Backtester:
         optimizer: LineupOptimizer,
         min_train: int = 5,
         budget: float = 100.0,
+        on_race_done: Callable[[RaceBacktestResult, int, int], None] | None = None,
     ) -> BacktestResult:
         """
         Walk-forward evaluation over a list of chronologically ordered events.
 
         For each split, trains the predictor on past races, predicts the next
         race, then evaluates MAE and (if price data is available) lineup quality.
+
+        on_race_done(result, n, total) is called after each race completes,
+        where n is the 1-based index and total is the number of splits.
         """
         race_results = []
-        for train_events, test_event in walk_forward_splits(events, min_train):
+        splits = list(walk_forward_splits(events, min_train))
+        total = len(splits)
+        for n, (train_events, test_event) in enumerate(splits, start=1):
             X, y = build_training_dataset(train_events, feature_store)
             if X.empty:
                 continue
@@ -97,18 +104,19 @@ class Backtester:
             lineup_predicted, lineup_actual, optimal = _optimize_and_score(
                 test_event, predictions, actuals, optimizer, budget
             )
-            race_results.append(
-                RaceBacktestResult(
-                    event_id=test_event.id,
-                    event_name=test_event.event_name,
-                    n_train=len(train_events),
-                    mae_position=mae_pos,
-                    mae_fantasy_points=mae_pts,
-                    lineup_predicted_points=lineup_predicted,
-                    lineup_actual_points=lineup_actual,
-                    optimal_actual_points=optimal,
-                )
+            race_result = RaceBacktestResult(
+                event_id=test_event.id,
+                event_name=test_event.event_name,
+                n_train=len(train_events),
+                mae_position=mae_pos,
+                mae_fantasy_points=mae_pts,
+                lineup_predicted_points=lineup_predicted,
+                lineup_actual_points=lineup_actual,
+                optimal_actual_points=optimal,
             )
+            race_results.append(race_result)
+            if on_race_done:
+                on_race_done(race_result, n, total)
         return BacktestResult(race_results=race_results)
 
 

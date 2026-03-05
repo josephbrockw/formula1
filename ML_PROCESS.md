@@ -360,11 +360,52 @@ The command chains prices forward race-by-race: price at race N uses AvgPPM comp
 
 ---
 
+---
+
+## Step 8 — Price Predictor v1 (Heuristic)
+
+**Location:** `f1_data/predictions/predictors/price_heuristic.py`
+
+**What was built:**
+
+A single pure function `predict_price_trajectory` that simulates the F1 Fantasy price formula forward using predicted fantasy points from XGBoost.
+
+```
+predict_price_trajectory(current_price, recent_scores, predicted_points) -> list[Decimal]
+```
+
+- `current_price`: driver's price going into the next race (already known)
+- `recent_scores`: `(pts, price)` pairs from last 1–3 actual races (rolling window seed)
+- `predicted_points`: predicted fantasy points for each future race (from XGBoost)
+- Returns: predicted price *after* each future race (= price going into the race after)
+
+**How it works:**
+
+This isn't an ML model — it's an analytical simulation of the known F1 Fantasy price formula. For each future race:
+1. Compute AvgPPM from the rolling window (actual history + any previously predicted races)
+2. Apply `next_price()` → get the new price
+3. Slide the window: drop the oldest entry, add `(predicted_pts, current_price)`
+4. Advance `current_price` to the new price
+
+The only source of error is in the predicted fantasy points. If the performance predictor is accurate, the price trajectory will be accurate.
+
+**Key insight:**
+
+Because we know the exact price mechanism (3-race rolling AvgPPM → tier → delta), this heuristic can be surprisingly precise. It's not a proxy — it's the actual formula run forward. The buy-low/sell-high signal quality is limited only by XGBoost's prediction accuracy, not by the price model.
+
+**What this enables:**
+
+The price trajectory lets the optimizer answer: "is this driver worth picking up now even if they score fewer points this race, because their price will rise and give us more budget in future races?" This is the core of the transfer strategy.
+
+Tests: `predictions/tests/test_price_heuristic.py` — 9 tests
+
+---
+
 ## What Is Not Yet Built
 
 | Step | What | Status |
 |------|------|--------|
 | Step 7 | Fantasy data import (import_fantasy_csv, compute_fantasy_prices) | done |
 | Step 7b | compute_fantasy_points (from raw FastF1 data) | deferred |
-| Step 8 | Price predictor v1 (heuristic) | todo |
+| Step 8 | Price predictor v1 (heuristic) | done |
 | Step 9 | Slack integration | todo |
