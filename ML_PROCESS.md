@@ -16,15 +16,21 @@ Circuit                      └── v1_pandas.V1FeatureStore
 Team                              queries ORM, returns feature dicts
 Driver                                     │
 Event                                      ▼
-Session                      Performance Predictor  [Step 3 — todo]
+Session                      Performance Predictor  [Step 3 — done]
 SessionResult                └── XGBoost v1
 Lap                                        │
 WeatherSample                              ▼
-                             Optimizer  [Step 4 — todo]
+                             Optimizer  [Step 4 — done]
                              └── Greedy knapsack v1
                                            │
                                            ▼
-                             Backtester  [Step 5 — todo]
+                             Backtester  [Step 5 — done]
+                                           │
+                                           ▼
+                             Management Commands  [Step 6 — done]
+                             ├── predict_race
+                             ├── optimize_lineup
+                             └── backtest
 ```
 
 The `predictions` app depends on `core` data but `core` knows nothing about predictions. Each layer talks to the next through a defined interface (Python Protocol), so implementations can be swapped independently.
@@ -252,12 +258,55 @@ We don't have a dedicated constructor model yet. Instead, predicted constructor 
 
 ---
 
+---
+
+## Step 6 — Management Commands
+
+**Location:** `f1_data/predictions/management/commands/`
+
+**What was built:**
+
+Three thin management commands that wire the existing pipeline layers together for real-world use.
+
+### `predict_race` — `python manage.py predict_race --year 2024 --round 5`
+
+Trains XGBoost on all past events (by `event_date`), generates predictions for the target event, saves `RacePrediction` records to the DB, then prints a table sorted by predicted fantasy points.
+
+Key behaviour:
+- Training events = all events with `event_date < target event_date` (cross-season, chronological)
+- Uses `update_or_create` so re-running overwrites stale predictions rather than duplicating
+- Skips drivers with no DB record in the target event's season (guards against data gaps)
+
+### `optimize_lineup` — `python manage.py optimize_lineup --year 2024 --round 5 --budget 100`
+
+Reads stored `RacePrediction` + `FantasyDriverPrice` / `FantasyConstructorPrice` records, runs `GreedyOptimizer`, saves a `LineupRecommendation`, and prints the team with DRS Boost marked.
+
+Key behaviour:
+- Deliberately depends on `predict_race` and `import_fantasy_csv` running first — separation of concerns
+- Constructor predicted points = sum of both team drivers' predicted points (no dedicated constructor model yet)
+- Saves with `strategy_type="single_race"` — multi-race horizon strategies will have different tags
+
+### `backtest` — `python manage.py backtest --seasons 2023 2024 --min-train 5`
+
+Chains all layers (feature store → predictor → optimizer → backtester) over the specified seasons and prints a per-race table with MAE and lineup scores, plus aggregate summary statistics.
+
+Output columns:
+- **MAE Pos** — mean absolute error on predicted finishing position
+- **MAE Pts** — mean absolute error on predicted fantasy points
+- **Lineup** — actual points scored by the optimizer's chosen lineup
+- **Optimal** — best achievable lineup score with perfect knowledge (oracle ceiling)
+
+**Key design principle across all three commands:**
+
+All logic lives in the layer modules already built (Steps 2–5). The commands are pure plumbing: parse args → instantiate layers → call them → format output. This means the commands are easy to test manually but don't need unit tests themselves (Django's management command testing infrastructure is heavy and the logic being tested is already covered).
+
+---
+
 ## What Is Not Yet Built
 
 | Step | What | Status |
 |------|------|--------|
-| Step 5 | Walk-forward backtester | done |
-| Step 6 | Management commands (predict_race, optimize_lineup, backtest) | todo |
+| Step 6 | Management commands (predict_race, optimize_lineup, backtest) | done |
 | Step 7 | import_fantasy_csv management command | todo |
 | Step 8 | Price predictor v1 (heuristic) | todo |
 | Step 9 | Slack integration | todo |

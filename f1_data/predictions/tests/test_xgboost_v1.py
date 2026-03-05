@@ -182,12 +182,14 @@ class TestBuildTrainingDataset(TestCase):
         self.assertIn("finishing_position", y.columns)
         self.assertIn("fantasy_points", y.columns)
 
-    def test_events_with_no_fantasy_data_are_skipped(self) -> None:
+    def test_events_with_no_fantasy_data_use_position_estimate(self) -> None:
         from datetime import date
         from predictions.features.v1_pandas import V1FeatureStore
-        # Event with race result but NO fantasy score
+        # Event with race result but NO fantasy score — still produces a row,
+        # using the position-based fallback estimate (P1 = 25 base points).
         event = make_event(self.season, round_number=1, event_date=date(2024, 1, 1))
         session = make_session(event, session_type="R")
         make_result(session, self.driver, self.team, position=1)
         X, y = build_training_dataset([event], V1FeatureStore())
-        self.assertEqual(len(X), 0)
+        self.assertEqual(len(X), 1)
+        self.assertEqual(float(y.iloc[0]["fantasy_points"]), 25.0)

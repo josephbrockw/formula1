@@ -17,6 +17,21 @@ TARGET_POINTS = "fantasy_points"
 # Columns that are not features — stripped before training/predicting
 _NON_FEATURE_COLS = {"driver_id"}
 
+# Base race points by finishing position (no bonuses).
+# Used as a fallback when FantasyDriverScore data hasn't been imported yet.
+# A driver's actual fantasy total also includes qualifying points, overtake
+# bonuses, fastest lap, and Driver of the Day — so these estimates are a
+# lower bound. Once real data is imported via import_fantasy_csv, those
+# records take precedence.
+_RACE_POSITION_BASE_POINTS: dict[int, float] = {
+    1: 25, 2: 18, 3: 15, 4: 12, 5: 10, 6: 8, 7: 6, 8: 4, 9: 2, 10: 1
+}
+
+
+def _estimate_fantasy_points(position: int) -> float:
+    """Estimate fantasy points from race position alone (no bonuses)."""
+    return _RACE_POSITION_BASE_POINTS.get(position, 0.0)
+
 
 class XGBoostPredictor:
     """
@@ -109,10 +124,17 @@ def build_training_dataset(
     """
     Build X (features) and y (targets) DataFrames from a list of historical events.
 
-    For each event, computes features for all drivers and pairs them with
-    their actual finishing position and fantasy points. Rows are skipped when
-    either target is missing (e.g. early seasons before fantasy data was collected,
-    or drivers who didn't start).
+    For each event, computes features for all drivers and pairs them with their
+    actual finishing position and fantasy points. Rows are skipped only when
+    finishing position is missing (driver didn't start or result not collected).
+
+    Fantasy points source (in priority order):
+      1. FantasyDriverScore records (imported from Chrome extension CSVs)
+      2. Estimated from race position using the standard scoring table
+
+    The fallback estimate covers base race points only — no qualifying, overtake
+    bonuses, fastest lap, or DotD. It unblocks training when real fantasy data
+    hasn't been imported yet and automatically gives way to real data once available.
 
     Returns:
         X: feature DataFrame including 'driver_id'
@@ -144,10 +166,11 @@ def build_training_dataset(
         for _, row in X_event.iterrows():
             driver_id = int(row["driver_id"])
             position = race_positions.get(driver_id)
-            fantasy_pts = fantasy_totals.get(driver_id)
 
-            if position is None or fantasy_pts is None:
+            if position is None:
                 continue
+
+            fantasy_pts = fantasy_totals.get(driver_id, _estimate_fantasy_points(int(position)))
 
             X_rows.append(row.to_dict())
             y_rows.append(
