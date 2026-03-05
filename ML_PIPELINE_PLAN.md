@@ -2,6 +2,9 @@
 
 ## Goal
 
+I want to learn about ML and AI through this project. So it's very important that code changes are done in very small pieces with explanations of what the changes do and what decisions were made and why.
+Please pause to teach me what we are doing throughout the process. 
+
 Build a modular ML pipeline that:
 1. Predicts driver/constructor race performance (finishing position, fantasy points)
 2. Predicts driver price movements (buy-low/sell-high signals)
