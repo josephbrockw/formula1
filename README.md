@@ -97,4 +97,37 @@ The original Django app with a web UI, lineup optimiser, fantasy data imports, a
 
 ## chrome_extension — F1 Fantasy exporter
 
-A Chrome extension that scrapes the F1 Fantasy website and exports driver/constructor prices, ownership percentages, and performance breakdowns as CSV files. See `chrome_extension/f1-fantasy-exporter/README.md`.
+A Chrome extension (v1.3) that scrapes the F1 Fantasy website and exports data as CSV files.
+
+### Installation
+
+1. Go to `chrome://extensions/` and enable **Developer mode**
+2. Click **Load unpacked** and select `chrome_extension/f1-fantasy-exporter/`
+3. Pin the extension icon to your toolbar
+
+### Exports
+
+**Prices snapshot** — navigate to the F1 Fantasy driver/constructor list, click the extension icon, then:
+- **Export Drivers** — downloads `YYYY-MM-DD-drivers.csv`
+- **Export Constructors** — switch to the Constructors tab first, then **Export Constructors** — downloads `YYYY-MM-DD-constructors.csv`
+
+Fields: name, team, % picked, season points, current value, price change.
+
+**Performance data** — navigate to the Drivers tab, click **Export Performance Data**. The extension automatically clicks through every driver card, then every constructor card (~2–3 minutes), and downloads:
+- `YYYY-MM-DD-all-drivers-performance.csv`
+- `YYYY-MM-DD-all-constructors-performance.csv`
+
+Fields: driver/constructor, race, event type (qualifying / sprint / race), scoring item, frequency, position, points, race total, season total.
+
+### CSV samples
+
+```
+# Prices
+Driver Name,Team,% Picked,Season Points,Current Value,Price Change
+Lando Norris,McLaren,22.00,614,$30.4M,-$0.1M
+
+# Performance
+Driver Name,Team,Driver Value,Race,Event Type,Scoring Item,Frequency,Position,Points,Race Total,Season Total
+Lando Norris,McLaren,$30.4M,Australia,qualifying,Qualifying Position,,1,10,59,614
+Lando Norris,McLaren,$30.4M,Australia,race,Race Overtake Bonus,5,,5,59,614
+```
