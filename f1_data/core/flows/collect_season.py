@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import time
 import traceback
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 from django.db import transaction
@@ -43,6 +44,7 @@ def collect_all(
     force_recollect: bool,
     stdout,
     round_number: int | None = None,
+    retry_failed: bool = False,
 ) -> None:
     if years is None:
         years = list(range(2018, datetime.date.today().year + 1))
@@ -52,7 +54,7 @@ def collect_all(
     for year in years:
         _sync_schedule(year)
 
-    sessions = _sessions_to_collect(years, force_recollect, round_number).order_by(
+    sessions = _sessions_to_collect(years, force_recollect, round_number, retry_failed).order_by(
         "event__season__year", "event__round_number", "session_type"
     )
     total = sessions.count()
@@ -172,12 +174,12 @@ def _sync_drivers_teams(
 
 
 def _sessions_to_collect(
-    years: list[int], force_recollect: bool, round_number: int | None = None
+    years: list[int], force_recollect: bool, round_number: int | None = None, retry_failed: bool = False
 ):
     if force_recollect:
         qs = Session.objects.filter(event__season__year__in=years)
     else:
-        qs = find_uncollected_sessions().filter(event__season__year__in=years)
+        qs = find_uncollected_sessions(include_failed=retry_failed).filter(event__season__year__in=years)
     if round_number is not None:
         qs = qs.filter(event__round_number=round_number)
     return qs
@@ -198,24 +200,25 @@ def _is_rate_limit(exc: Exception) -> bool:
 def _process_session(
     run: CollectionRun, session: Session, i: int, total: int, stdout
 ) -> None:
-    try:
-        collect_single_session(session)
-        run.sessions_processed += 1
-        run.save(update_fields=["sessions_processed"])
-    except Exception as exc:
-        if _is_rate_limit(exc):
-            _pause_for_rate_limit(run, session, i, total, stdout)
+    for attempt, pause_minutes in enumerate([None, 1, 5, 60]):
+        if pause_minutes is not None:
+            _pause_for_rate_limit(run, session, i, total, stdout, pause_minutes)
+        try:
             collect_single_session(session)
             run.sessions_processed += 1
             run.save(update_fields=["sessions_processed"])
-        else:
+            return
+        except Exception as exc:
+            if _is_rate_limit(exc) and attempt < 3:
+                continue
             _handle_session_error(run, session, exc, stdout)
+            return
 
 
 def _pause_for_rate_limit(
-    run: CollectionRun, session: Session, i: int, total: int, stdout
+    run: CollectionRun, session: Session, i: int, total: int, stdout, minutes: int
 ) -> None:
-    resume_at = timezone.now() + datetime.timedelta(minutes=61)
+    resume_at = timezone.now() + datetime.timedelta(minutes=minutes)
     run.status = "paused_rate_limit"
     run.save(update_fields=["status"])
     remaining = total - (i + 1)
@@ -226,14 +229,14 @@ def _pause_for_rate_limit(
     )
     msg = (
         f"Rate limited at [{i + 1}/{total}] {session.event.event_name} — {session.session_type}. "
-        f"Pausing until {resume_at.strftime('%H:%M UTC')}.\n"
+        f"Pausing {minutes}m until {resume_at.astimezone(ZoneInfo("America/Chicago")).strftime('%H:%M %Z')}.\n"
         f"Progress: {run.sessions_processed} processed, {run.sessions_skipped} failed, "
         f"{remaining} remaining.\n\n"
         f"Season status:\n{season_lines}"
     )
-    stdout.write(f"⚠️  Rate limited. Slack notified. Pausing until {resume_at.strftime('%H:%M UTC')}.")
+    stdout.write(f"⚠️  Rate limited. Pausing {minutes}m until {resume_at.astimezone(ZoneInfo("America/Chicago")).strftime('%H:%M %Z')}.")
     send_slack_notification(msg, level="warning")
-    time.sleep(61 * 60)
+    time.sleep(minutes * 60)
     run.status = "running"
     run.save(update_fields=["status"])
 

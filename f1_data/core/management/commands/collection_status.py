@@ -22,12 +22,19 @@ class Command(BaseCommand):
 
     def _print_summary(self) -> None:
         summary = get_collection_summary()
-        self.stdout.write(f"{'Season':<8} | {'Total':>5} | {'Done':>5} | {'Failed':>6} | {'Pending':>7}")
-        self.stdout.write(f"{'-'*8}-+-{'-'*5}-+-{'-'*5}-+-{'-'*6}-+-{'-'*7}")
-        for year, counts in summary.items():
+        header = (
+            f"{'Year':<6}  {'Sessions':>8}  {'Past':>6}  {'Complete':>12}  "
+            f"{'Failed':>6}  {'Weather':>8}  {'Results':>8}  {'Laps':>6}"
+        )
+        self.stdout.write(header)
+        self.stdout.write("-" * len(header))
+        for year, c in summary.items():
+            total = c["total"]
+            pct = f"{round(100 * c['completed'] / total)}%" if total else "0%"
+            complete_str = f"{c['completed']} ({pct})"
             self.stdout.write(
-                f"{year:<8} | {counts['total']:>5} | {counts['completed']:>5} |"
-                f" {counts['failed']:>6} | {counts['pending']:>7}"
+                f"{year:<6}  {total:>8}  {c['past']:>6}  {complete_str:>12}  "
+                f"{c['failed']:>6}  {c['with_weather']:>8}  {c['with_results']:>8}  {c['with_laps']:>6}"
             )
 
     def _print_sessions(self, year: int | None, gaps_only: bool) -> None:

@@ -277,7 +277,7 @@ class TestCollectAll(TestCase):
     @patch(f"{FLOW}.send_slack_notification")
     @patch(f"{FLOW}.load_session")
     @patch(f"{FLOW}.get_event_schedule")
-    def test_rate_limit_sleeps_61_minutes(
+    def test_rate_limit_sleeps_1_minute_on_first_retry(
         self, mock_schedule, mock_load, mock_notify, mock_sleep
     ) -> None:
         from requests.exceptions import HTTPError
@@ -287,7 +287,7 @@ class TestCollectAll(TestCase):
         error.response = MagicMock(status_code=429)
         mock_load.side_effect = [error, make_session_mock()]
         collect_all(years=[2024], force_recollect=False, stdout=_stdout())
-        mock_sleep.assert_called_once_with(61 * 60)
+        mock_sleep.assert_called_once_with(1 * 60)
 
     @patch(f"{FLOW}.time.sleep")
     @patch(f"{FLOW}.send_slack_notification")
@@ -357,6 +357,6 @@ class TestCollectAll(TestCase):
         mock_schedule.return_value = make_schedule_dataframe(sessions=["Race"])
         mock_load.side_effect = [RateLimitExceededError("any API: 500 calls/h"), make_session_mock()]
         collect_all(years=[2024], force_recollect=False, stdout=_stdout())
-        mock_sleep.assert_called_once_with(61 * 60)
+        mock_sleep.assert_called_once_with(1 * 60)
         scs = SessionCollectionStatus.objects.get(session__session_type="R")
         self.assertEqual(scs.status, "completed")

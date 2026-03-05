@@ -47,10 +47,15 @@ class TestFindUncollectedSessions(TestCase):
         SessionCollectionStatus.objects.create(session=session, status="pending")
         self.assertIn(session, find_uncollected_sessions())
 
-    def test_find_uncollected_returns_failed_session(self) -> None:
+    def test_find_uncollected_excludes_failed_session_by_default(self) -> None:
         session = _make_session(self.event)
         SessionCollectionStatus.objects.create(session=session, status="failed")
-        self.assertIn(session, find_uncollected_sessions())
+        self.assertNotIn(session, find_uncollected_sessions())
+
+    def test_find_uncollected_includes_failed_session_when_include_failed_true(self) -> None:
+        session = _make_session(self.event)
+        SessionCollectionStatus.objects.create(session=session, status="failed")
+        self.assertIn(session, find_uncollected_sessions(include_failed=True))
 
     def test_find_uncollected_returns_collecting_session(self) -> None:
         session = _make_session(self.event)
