@@ -223,3 +223,47 @@ class LineupRecommendation(models.Model):
 
     def __str__(self) -> str:
         return f"{self.event} — {self.strategy_type} ({self.model_version}): {self.predicted_points:.1f} predicted pts"
+
+
+# ---------------------------------------------------------------------------
+# My actual submitted lineups
+# ---------------------------------------------------------------------------
+
+
+class MyLineup(models.Model):
+    """
+    The lineup you actually submitted to F1 Fantasy for a race weekend.
+
+    Distinct from LineupRecommendation (what the optimizer suggested). They
+    will often differ — you might ignore a recommendation, make a judgment
+    call, or have constraints the optimizer doesn't know about.
+
+    This is the source of truth for transfer constraint tracking: the
+    next_race command reads the most recent MyLineup to know your current
+    team and how many free transfers you have banked.
+
+    actual_points is null until after the race — fill it in via
+    record_my_lineup --actual-points N once results are published.
+    """
+
+    event = models.ForeignKey(Event, on_delete=models.CASCADE)
+    driver_1 = models.ForeignKey(Driver, on_delete=models.CASCADE, related_name="+")
+    driver_2 = models.ForeignKey(Driver, on_delete=models.CASCADE, related_name="+")
+    driver_3 = models.ForeignKey(Driver, on_delete=models.CASCADE, related_name="+")
+    driver_4 = models.ForeignKey(Driver, on_delete=models.CASCADE, related_name="+")
+    driver_5 = models.ForeignKey(Driver, on_delete=models.CASCADE, related_name="+")
+    drs_boost_driver = models.ForeignKey(Driver, on_delete=models.CASCADE, related_name="+")
+    constructor_1 = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="+")
+    constructor_2 = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="+")
+    actual_points = models.FloatField(null=True, blank=True)
+    submitted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("event",)]
+
+    def __str__(self) -> str:
+        drivers = ", ".join(
+            d.code
+            for d in [self.driver_1, self.driver_2, self.driver_3, self.driver_4, self.driver_5]
+        )
+        return f"{self.event} — {drivers}"

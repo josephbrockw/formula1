@@ -12,6 +12,7 @@ The project is in f1_data/ and chrome_extension/. f1_analytics/ is legacy abando
 - `PLAN.md` — Full data collection implementation plan with model specs, architecture, and build order. This has already beed completed.
 - `ML_PIPELINE_PLAN.md` - The plan to execute the ML portion of this project.
 - `ML_PROCESS.md` - Living log of what has been implemented in the ML pipeline, decisions made, and current state. **Update this file whenever a step is completed or a significant decision is made.**
+- `USAGE.md` - Living doc of how to use the ml to produce real insights. **Update this file whenever a step has changed, been added, or there is a new feature/utility.**
 - `.claude/skills/django-models.md` — Conventions for Django model code
 - `.claude/skills/testing.md` — Testing standards and patterns
 - `.claude/skills/fastf1-data.md` — FastF1 API quirks and data handling

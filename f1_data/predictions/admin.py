@@ -8,6 +8,7 @@ from predictions.models import (
     FantasyDriverPrice,
     FantasyDriverScore,
     LineupRecommendation,
+    MyLineup,
     RacePrediction,
     ScoringRule,
 )
@@ -19,3 +20,4 @@ admin.site.register(FantasyConstructorScore)
 admin.site.register(ScoringRule)
 admin.site.register(RacePrediction)
 admin.site.register(LineupRecommendation)
+admin.site.register(MyLineup)
