@@ -32,7 +32,8 @@ class LineupOptimizer(Protocol):
     Interface for lineup selection under budget and composition constraints.
 
     Implementations:
-        greedy_v1.GreedyOptimizer — value-sorted greedy knapsack (MVP)
+        greedy_v1.GreedyOptimizer — value-sorted greedy knapsack (baseline)
+        greedy_v2.GreedyOptimizerV2 — adds budget-maximising upgrade pass
     """
 
     def optimize_single_race(

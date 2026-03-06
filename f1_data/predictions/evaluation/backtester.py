@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from decimal import Decimal
 
 import pandas as pd
 from django.db.models import Max
@@ -16,7 +17,12 @@ from predictions.models import (
 )
 from predictions.optimizers.base import Lineup, LineupOptimizer
 from predictions.predictors.base import PerformancePredictor
+from predictions.predictors.price_heuristic import predict_price_trajectory
 from predictions.predictors.xgboost_v1 import build_training_dataset, walk_forward_splits
+
+# Points of future lineup value attributed to each $1M of predicted price appreciation.
+# A driver rising $2M is treated as scoring PRICE_SENSITIVITY * 2 extra points this race.
+PRICE_SENSITIVITY = 5.0
 
 
 @dataclass
@@ -36,6 +42,7 @@ class RaceBacktestResult:
     lineup_predicted_points: float | None
     lineup_actual_points: float | None
     optimal_actual_points: float | None
+    n_transfers: int = 0
 
 
 @dataclass
@@ -86,6 +93,9 @@ class Backtester:
         where n is the 1-based index and total is the number of splits.
         """
         race_results = []
+        rolling_scores: dict[int, list[tuple[float, Decimal]]] = {}
+        current_lineup: Lineup | None = None
+        banked_transfers: int = 2  # start of season: 2 free credits
         splits = list(walk_forward_splits(events, min_train))
         total = len(splits)
         for n, (train_events, test_event) in enumerate(splits, start=1):
@@ -101,9 +111,20 @@ class Backtester:
             if not actuals:
                 continue
             mae_pos, mae_pts = _compute_mae(predictions, actuals)
-            lineup_predicted, lineup_actual, optimal = _optimize_and_score(
-                test_event, predictions, actuals, optimizer, budget
+            adjusted = _price_adjust_predictions(predictions, test_event, rolling_scores)
+            constraints = {
+                "current_lineup": current_lineup,
+                "free_transfers": banked_transfers,
+                "transfer_penalty": 10.0,
+            }
+            lineup_predicted, lineup_actual, optimal, new_lineup = _optimize_and_score(
+                test_event, adjusted, actuals, optimizer, budget, constraints
             )
+            n_transfers = _count_transfers(current_lineup, new_lineup)
+            if lineup_actual is not None:
+                lineup_actual -= max(0, n_transfers - banked_transfers) * 10.0
+            banked_transfers = min(2, banked_transfers - min(n_transfers, banked_transfers) + 1)
+            current_lineup = new_lineup
             race_result = RaceBacktestResult(
                 event_id=test_event.id,
                 event_name=test_event.event_name,
@@ -113,16 +134,79 @@ class Backtester:
                 lineup_predicted_points=lineup_predicted,
                 lineup_actual_points=lineup_actual,
                 optimal_actual_points=optimal,
+                n_transfers=n_transfers,
             )
             race_results.append(race_result)
             if on_race_done:
                 on_race_done(race_result, n, total)
+            _update_rolling_scores(rolling_scores, test_event, actuals)
         return BacktestResult(race_results=race_results)
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _count_transfers(old: Lineup | None, new: Lineup | None) -> int:
+    """Count how many players changed between two lineups."""
+    if old is None or new is None:
+        return 0
+    return (
+        len(set(new.driver_ids) - set(old.driver_ids))
+        + len(set(new.constructor_ids) - set(old.constructor_ids))
+    )
+
+
+def _price_adjust_predictions(
+    predictions: pd.DataFrame,
+    event: Event,
+    rolling_scores: dict[int, list[tuple[float, Decimal]]],
+) -> pd.DataFrame:
+    """
+    Boost each driver's predicted_fantasy_points by their expected price change
+    multiplied by PRICE_SENSITIVITY.
+
+    A driver rising $2M next race is worth PRICE_SENSITIVITY * 2 extra points to
+    the optimizer — that money expands future lineup budgets. Uses horizon=1 (next
+    race only) since uncertainty compounds quickly beyond one race.
+
+    Returns predictions unchanged when no price data exists for this event.
+    """
+    driver_prices = dict(
+        FantasyDriverPrice.objects.filter(event=event).values_list("driver_id", "price")
+    )
+    if not driver_prices:
+        return predictions
+    adjusted = predictions.copy()
+    for i, row in adjusted.iterrows():
+        did = int(row["driver_id"])
+        price = driver_prices.get(did)
+        if price is None:
+            continue
+        recent = rolling_scores.get(did, [])
+        trajectory = predict_price_trajectory(price, recent, [float(row["predicted_fantasy_points"])])
+        if trajectory:
+            price_change = float(trajectory[0] - price)
+            adjusted.at[i, "predicted_fantasy_points"] += price_change * PRICE_SENSITIVITY
+    return adjusted
+
+
+def _update_rolling_scores(
+    rolling_scores: dict[int, list[tuple[float, Decimal]]],
+    event: Event,
+    actuals: dict[int, tuple[float, float]],
+) -> None:
+    """Append this race's actual (pts, price) to each driver's rolling window."""
+    driver_prices = dict(
+        FantasyDriverPrice.objects.filter(event=event).values_list("driver_id", "price")
+    )
+    for did, (_, actual_pts) in actuals.items():
+        price = driver_prices.get(did)
+        if price is None:
+            continue
+        history = rolling_scores.get(did, [])
+        rolling_scores[did] = (history + [(actual_pts, price)])[-3:]
 
 
 def _actual_driver_results(event: Event) -> dict[int, tuple[float, float]]:
@@ -171,10 +255,11 @@ def _optimize_and_score(
     actuals: dict[int, tuple[float, float]],
     optimizer: LineupOptimizer,
     budget: float,
-) -> tuple[float | None, float | None, float | None]:
+    constraints: dict | None = None,
+) -> tuple[float | None, float | None, float | None, Lineup | None]:
     """
-    Return (lineup_predicted_pts, lineup_actual_pts, optimal_actual_pts).
-    Returns (None, None, None) when price data is unavailable for the event.
+    Return (lineup_predicted_pts, lineup_actual_pts, optimal_actual_pts, lineup).
+    Returns (None, None, None, None) when price data is unavailable for the event.
     """
     driver_prices = dict(
         FantasyDriverPrice.objects.filter(event=event).values_list("driver_id", "price")
@@ -183,14 +268,14 @@ def _optimize_and_score(
         FantasyConstructorPrice.objects.filter(event=event).values_list("team_id", "price")
     )
     if not driver_prices or not constructor_prices:
-        return None, None, None
+        return None, None, None, None
 
     driver_preds_df = _build_driver_preds_df(predictions, driver_prices)
     constructor_preds_df = _build_constructor_preds_df(event, predictions, constructor_prices)
     if driver_preds_df.empty or constructor_preds_df.empty:
-        return None, None, None
+        return None, None, None, None
 
-    lineup = optimizer.optimize_single_race(driver_preds_df, constructor_preds_df, budget)
+    lineup = optimizer.optimize_single_race(driver_preds_df, constructor_preds_df, budget, constraints)
     actual_driver_pts = {did: pts for did, (_, pts) in actuals.items()}
     actual_constructor_pts = dict(
         FantasyConstructorScore.objects.filter(event=event)
@@ -199,10 +284,11 @@ def _optimize_and_score(
         .values_list("team_id", "total")
     )
     lineup_actual = _score_lineup(lineup, actual_driver_pts, actual_constructor_pts)
+    # Oracle optimal is always unconstrained — it's the ceiling with perfect knowledge.
     optimal = _optimal_score(
         driver_preds_df, constructor_preds_df, actual_driver_pts, actual_constructor_pts, optimizer, budget
     )
-    return lineup.predicted_points, lineup_actual, optimal
+    return lineup.predicted_points, lineup_actual, optimal, lineup
 
 
 def _build_driver_preds_df(

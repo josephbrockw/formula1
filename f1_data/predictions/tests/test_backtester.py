@@ -13,7 +13,7 @@ from predictions.evaluation.backtester import (
     _score_lineup,
 )
 from predictions.optimizers.base import Lineup
-from predictions.optimizers.greedy_v1 import GreedyOptimizer
+from predictions.optimizers.greedy_v2 import GreedyOptimizerV2
 from predictions.tests.factories import (
     make_constructor_price,
     make_constructor_score,
@@ -190,7 +190,7 @@ class TestBacktesterRun(TestCase):
             events=events,
             feature_store=V1FeatureStore(),
             predictor=XGBoostPredictor(),
-            optimizer=GreedyOptimizer(),
+            optimizer=GreedyOptimizerV2(),
             min_train=1,
         )
         self.assertIsInstance(result, BacktestResult)
@@ -205,7 +205,7 @@ class TestBacktesterRun(TestCase):
             events=events,
             feature_store=V1FeatureStore(),
             predictor=XGBoostPredictor(),
-            optimizer=GreedyOptimizer(),
+            optimizer=GreedyOptimizerV2(),
             min_train=1,
         )
         # 4 events with min_train=1 → 3 test events
@@ -221,7 +221,7 @@ class TestBacktesterRun(TestCase):
             events=events,
             feature_store=V1FeatureStore(),
             predictor=XGBoostPredictor(),
-            optimizer=GreedyOptimizer(),
+            optimizer=GreedyOptimizerV2(),
             min_train=1,
         )
         for race in result.race_results:
@@ -238,7 +238,7 @@ class TestBacktesterRun(TestCase):
             events=events,
             feature_store=V1FeatureStore(),
             predictor=XGBoostPredictor(),
-            optimizer=GreedyOptimizer(),
+            optimizer=GreedyOptimizerV2(),
             min_train=1,
         )
         for race in result.race_results:
@@ -296,7 +296,7 @@ class TestBacktesterRun(TestCase):
             events=[event1, event2],
             feature_store=V1FeatureStore(),
             predictor=XGBoostPredictor(),
-            optimizer=GreedyOptimizer(),
+            optimizer=GreedyOptimizerV2(),
             min_train=1,
         )
         race = result.race_results[0]
@@ -319,7 +319,7 @@ class TestBacktesterRun(TestCase):
             events=[event1, event2],
             feature_store=V1FeatureStore(),
             predictor=XGBoostPredictor(),
-            optimizer=GreedyOptimizer(),
+            optimizer=GreedyOptimizerV2(),
             min_train=1,
         )
         race = result.race_results[0]

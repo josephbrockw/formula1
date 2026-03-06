@@ -10,7 +10,7 @@ from predictions.models import (
     LineupRecommendation,
     RacePrediction,
 )
-from predictions.optimizers.greedy_v1 import GreedyOptimizer
+from predictions.optimizers.greedy_v2 import GreedyOptimizerV2
 
 _DEFAULT_MODEL_VERSION = "xgboost_v1"
 _STRATEGY_TYPE = "single_race"
@@ -91,7 +91,7 @@ class Command(BaseCommand):
         ]
         constructor_preds_df = pd.DataFrame(constructor_rows)
 
-        lineup = GreedyOptimizer().optimize_single_race(driver_preds_df, constructor_preds_df, budget)
+        lineup = GreedyOptimizerV2().optimize_single_race(driver_preds_df, constructor_preds_df, budget)
 
         drivers_by_id = {d.id: d for d in Driver.objects.filter(season=event.season)}
         teams_by_id = {t.id: t for t in Team.objects.filter(season=event.season)}

@@ -401,6 +401,52 @@ Tests: `predictions/tests/test_price_heuristic.py` — 9 tests
 
 ---
 
+---
+
+## Optimizer + Backtester Improvements (post-Step 8)
+
+Three successive improvements to the optimizer and backtester, each verified to improve backtest scores.
+
+### A — Budget Maximisation (`greedy_v2.GreedyOptimizerV2`)
+
+**Location:** `f1_data/predictions/optimizers/greedy_v2.py`
+
+`GreedyOptimizerV1` picks by PPM (points-per-dollar) and stops. If the budget isn't tight, unspent money could have been used to upgrade picks to higher-scoring alternatives.
+
+`GreedyOptimizerV2` adds an **upgrade pass** after greedy selection: iterates over every picked player and swaps them for the best unpicked player who scores more and fits in the remaining budget. Repeats until stable. This ensures the full budget is spent optimally.
+
+`greedy_v1.py` is preserved unchanged as a baseline. `greedy_v2.py` imports `_pick_greedily` from v1 and adds `_upgrade_picks` on top. All commands (`backtest`, `optimize_lineup`) updated to use v2.
+
+Tests: `predictions/tests/test_greedy_v2.py`
+
+### B — Price-Aware Lineup Selection (`backtester.py`)
+
+**Location:** `f1_data/predictions/evaluation/backtester.py`
+
+A driver whose price is predicted to rise $2M next race gives you $2M more budget to spend in future races. That future value should influence which lineup you pick now.
+
+Before each race's lineup optimisation, `_price_adjust_predictions` boosts each driver's `predicted_fantasy_points` by `expected_price_change * PRICE_SENSITIVITY` (default: 5.0 — meaning $1M of predicted appreciation = 5 bonus points). Uses `predict_price_trajectory` with horizon=1.
+
+The backtester maintains a `rolling_scores` dict tracking the last 3 `(actual_pts, price)` pairs per driver, updated after each race. This seeds the price trajectory calculation with real history.
+
+**Key decision:** MAE is computed on *raw* predictions. Price adjustment only affects lineup selection, not accuracy measurement.
+
+### C — Transfer Constraints (`greedy_v2.py` + `backtester.py`)
+
+Real F1 Fantasy: 2 free transfers per race, extras cost 10 points each, 1 unused transfer banks to the next race (max 2 banked).
+
+**Backtester** now tracks `current_lineup` and `banked_transfers` across races, passes them as constraints to the optimizer, and deducts `max(0, n_transfers - free_transfers) * 10` from `lineup_actual_points`. The oracle optimal is still computed without constraints (it's the theoretical ceiling).
+
+**Optimizer** (`_apply_transfer_constraints`) finds the diff between ideal and current lineup, pairs swaps by gain (drop worst, bring best), and applies: all free transfers + any paid ones where `gain > transfer_penalty`. Budget-checks and reverts the last paid change if over.
+
+`RaceBacktestResult` gains an `n_transfers` field. The `backtest` command shows a `Trades` column.
+
+**Why constraints improved scores:** The 10-point penalty gate acts as a confidence filter — the optimizer only acts on large predicted differences, ignoring noise. Without constraints the optimizer was "overfitting" to noisy predictions by rebuilding from scratch each race. This is analogous to regularisation in ML: adding a penalty for complexity improves out-of-sample performance.
+
+Tests: `TestApplyTransferConstraints` in `predictions/tests/test_greedy_v2.py`
+
+---
+
 ## What Is Not Yet Built
 
 | Step | What | Status |
@@ -408,4 +454,5 @@ Tests: `predictions/tests/test_price_heuristic.py` — 9 tests
 | Step 7 | Fantasy data import (import_fantasy_csv, compute_fantasy_prices) | done |
 | Step 7b | compute_fantasy_points (from raw FastF1 data) | deferred |
 | Step 8 | Price predictor v1 (heuristic) | done |
+| Optimizer improvements | Budget maximisation, price-aware selection, transfer constraints | done |
 | Step 9 | Slack integration | todo |

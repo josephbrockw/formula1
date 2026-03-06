@@ -226,3 +226,4 @@ class TestPickGreedily(SimpleTestCase):
             candidates.loc[candidates["id"].isin(result), "price"]
         )
         self.assertLessEqual(total_price, 60.0)
+

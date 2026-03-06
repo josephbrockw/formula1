@@ -5,7 +5,7 @@ from django.core.management.base import BaseCommand, CommandError
 from core.models import Event
 from predictions.evaluation.backtester import Backtester, RaceBacktestResult
 from predictions.features.v1_pandas import V1FeatureStore
-from predictions.optimizers.greedy_v1 import GreedyOptimizer
+from predictions.optimizers.greedy_v2 import GreedyOptimizerV2
 from predictions.predictors.xgboost_v1 import XGBoostPredictor
 
 
@@ -56,7 +56,7 @@ class Command(BaseCommand):
 
         header = (
             f"{'':>10}  {'Event':<35}  {'Train':>5}  {'MAE Pos':>7}  {'MAE Pts':>7}"
-            f"  {'Lineup':>7}  {'Optimal':>7}"
+            f"  {'Trades':>6}  {'Lineup':>7}  {'Optimal':>7}"
         )
         self.stdout.write(header)
         self.stdout.write("-" * len(header))
@@ -66,14 +66,14 @@ class Command(BaseCommand):
             optimal_str = f"{r.optimal_actual_points:.1f}" if r.optimal_actual_points is not None else "—"
             self.stdout.write(
                 f"[{n:>3}/{total}]  {r.event_name:<35}  {r.n_train:>5}  {r.mae_position:>7.2f}"
-                f"  {r.mae_fantasy_points:>7.2f}  {lineup_str:>7}  {optimal_str:>7}"
+                f"  {r.mae_fantasy_points:>7.2f}  {r.n_transfers:>6}  {lineup_str:>7}  {optimal_str:>7}"
             )
 
         result = Backtester().run(
             events=events,
             feature_store=V1FeatureStore(),
             predictor=XGBoostPredictor(),
-            optimizer=GreedyOptimizer(),
+            optimizer=GreedyOptimizerV2(),
             min_train=min_train,
             budget=budget,
             on_race_done=on_race_done,
