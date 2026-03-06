@@ -8,7 +8,11 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import SimpleTestCase, TestCase
 
-from predictions.management.commands.next_race import _count_transfers, _current_state
+from predictions.management.commands.next_race import (
+    _compute_available_budget,
+    _count_transfers,
+    _current_state,
+)
 from predictions.models import MyLineup
 from predictions.optimizers.base import Lineup
 from predictions.tests.factories import (
@@ -148,6 +152,65 @@ class TestCurrentState(TestCase):
         lineup, banked = _current_state(self.event1)
         self.assertIsNone(lineup)
         self.assertEqual(banked, 2)
+
+
+# ---------------------------------------------------------------------------
+# _compute_available_budget
+# ---------------------------------------------------------------------------
+
+
+class TestComputeAvailableBudget(TestCase):
+    def setUp(self) -> None:
+        self.season = make_season(year=2026)
+        self.mclaren = make_team(self.season, name="McLaren")
+        self.ferrari = make_team(self.season, name="Ferrari")
+        self.nor = make_driver(self.season, self.mclaren, code="NOR", driver_number=4)
+        self.ver = make_driver(self.season, self.mclaren, code="VER", driver_number=1)
+        self.pia = make_driver(self.season, self.mclaren, code="PIA", driver_number=81)
+        self.lec = make_driver(self.season, self.ferrari, code="LEC", driver_number=16)
+        self.ham = make_driver(self.season, self.ferrari, code="HAM", driver_number=44)
+        self.event1 = make_event(self.season, round_number=1, event_date=date(2026, 3, 1))
+        self.event2 = make_event(self.season, round_number=2, event_date=date(2026, 3, 15))
+
+    def _make_lineup(self, event, budget_cap, team_cost) -> MyLineup:
+        from decimal import Decimal
+        return MyLineup.objects.create(
+            event=event,
+            driver_1=self.nor, driver_2=self.ver, driver_3=self.pia,
+            driver_4=self.lec, driver_5=self.ham,
+            drs_boost_driver=self.nor,
+            constructor_1=self.mclaren, constructor_2=self.ferrari,
+            budget_cap=Decimal(str(budget_cap)) if budget_cap is not None else None,
+            team_cost=Decimal(str(team_cost)) if team_cost is not None else None,
+        )
+
+    def test_returns_none_when_budget_cap_null(self) -> None:
+        lineup = self._make_lineup(self.event1, budget_cap=None, team_cost=98.5)
+        result = _compute_available_budget(lineup, self.event2)
+        self.assertIsNone(result)
+
+    def test_returns_none_when_team_cost_null(self) -> None:
+        lineup = self._make_lineup(self.event1, budget_cap=100.0, team_cost=None)
+        result = _compute_available_budget(lineup, self.event2)
+        self.assertIsNone(result)
+
+    def test_returns_none_when_prices_missing(self) -> None:
+        lineup = self._make_lineup(self.event1, budget_cap=100.0, team_cost=98.5)
+        # No prices seeded for event2
+        result = _compute_available_budget(lineup, self.event2)
+        self.assertIsNone(result)
+
+    def test_correct_budget_with_prices(self) -> None:
+        # bank = 100.0 - 98.5 = 1.5
+        # event2 prices: 5 drivers @ 20.0 + 2 constructors @ 15.0 = 130.0
+        # available = 1.5 + 130.0 = 131.5
+        lineup = self._make_lineup(self.event1, budget_cap=100.0, team_cost=98.5)
+        for d in [self.nor, self.ver, self.pia, self.lec, self.ham]:
+            make_driver_price(d, self.event2, price=20.0)
+        make_constructor_price(self.mclaren, self.event2, price=15.0)
+        make_constructor_price(self.ferrari, self.event2, price=15.0)
+        result = _compute_available_budget(lineup, self.event2)
+        self.assertAlmostEqual(result, 131.5)
 
 
 # ---------------------------------------------------------------------------
@@ -334,3 +397,29 @@ class TestNextRaceCommand(TestCase):
             out = StringIO()
             call_command("next_race", year=2026, round=2, budget=150.0, stdout=out)
             self.assertIn("RECOMMENDED LINEUP", out.getvalue())
+
+    def test_raises_when_no_budget_and_no_prior_lineup(self) -> None:
+        with self._patch_ml():
+            with self.assertRaises(CommandError):
+                call_command("next_race", year=2026, round=2)
+
+    def test_auto_detects_budget_from_prior_lineup(self) -> None:
+        from decimal import Decimal
+        from io import StringIO
+        # Record a prior lineup with budget info: bank=1.5, players priced at 20+20+20+20+20+25+20=145
+        # auto budget = 1.5 + 145 = 146.5
+        MyLineup.objects.create(
+            event=self.past_event,
+            driver_1=self.nor, driver_2=self.ver, driver_3=self.pia,
+            driver_4=self.lec, driver_5=self.ham,
+            drs_boost_driver=self.nor,
+            constructor_1=self.mclaren, constructor_2=self.ferrari,
+            budget_cap=Decimal("100.0"),
+            team_cost=Decimal("98.5"),
+        )
+        with self._patch_ml():
+            out = StringIO()
+            call_command("next_race", year=2026, round=2, stdout=out)
+            output = out.getvalue()
+            self.assertIn("auto-detected", output)
+            self.assertNotIn("manual override", output)

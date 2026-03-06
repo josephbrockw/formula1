@@ -5,6 +5,8 @@ from django.core.management.base import BaseCommand, CommandError
 
 from core.models import Driver, Event, Team
 from predictions.features.v2_pandas import V2FeatureStore
+from decimal import Decimal
+
 from predictions.models import FantasyConstructorPrice, FantasyDriverPrice, MyLineup
 from predictions.optimizers.base import Lineup
 from predictions.optimizers.greedy_v2 import GreedyOptimizerV2
@@ -18,12 +20,12 @@ class Command(BaseCommand):
     def add_arguments(self, parser) -> None:
         parser.add_argument("--year", type=int, required=True)
         parser.add_argument("--round", type=int, required=True)
-        parser.add_argument("--budget", type=float, default=100.0, help="Budget cap in $M (default: 100)")
+        parser.add_argument("--budget", type=float, default=None,
+                            help="Budget cap in $M (auto-detected from last lineup if not given)")
 
     def handle(self, *args, **options) -> None:
         year = options["year"]
         round_number = options["round"]
-        budget = options["budget"]
 
         try:
             event = Event.objects.select_related("season", "circuit").get(
@@ -78,6 +80,25 @@ class Command(BaseCommand):
         constructor_preds_df = _build_constructor_preds_df(event, predictions, constructor_prices)
 
         current_lineup, banked_transfers = _current_state(event)
+        last_mylineup = (
+            MyLineup.objects
+            .filter(event__season=event.season, event__event_date__lt=event.event_date)
+            .order_by("-event__event_date")
+            .first()
+        )
+
+        auto_budget = _compute_available_budget(last_mylineup, event) if last_mylineup else None
+        if auto_budget is not None:
+            budget = auto_budget
+            self.stdout.write(f"Budget: ${budget:.1f}M (auto-detected)")
+        elif options["budget"] is not None:
+            budget = options["budget"]
+            self.stdout.write(f"Budget: ${budget:.1f}M (manual override)")
+        else:
+            raise CommandError(
+                "Could not auto-detect budget (prices missing or no prior lineup). "
+                "Pass --budget to override."
+            )
 
         self.stdout.write("\n--- CURRENT TEAM ---")
         if current_lineup is None:
@@ -147,6 +168,28 @@ def _current_state(event: Event) -> tuple[Lineup | None, int]:
         prev = current
 
     return prev, banked
+
+
+def _compute_available_budget(last: MyLineup, target_event: Event) -> float | None:
+    if last.budget_cap is None or last.team_cost is None:
+        return None
+    bank = float(last.budget_cap) - float(last.team_cost)
+    driver_ids = [last.driver_1_id, last.driver_2_id, last.driver_3_id,
+                  last.driver_4_id, last.driver_5_id]
+    team_ids = [last.constructor_1_id, last.constructor_2_id]
+    driver_prices = dict(
+        FantasyDriverPrice.objects.filter(event=target_event, driver_id__in=driver_ids)
+        .values_list("driver_id", "price")
+    )
+    constructor_prices = dict(
+        FantasyConstructorPrice.objects.filter(event=target_event, team_id__in=team_ids)
+        .values_list("team_id", "price")
+    )
+    if len(driver_prices) != 5 or len(constructor_prices) != 2:
+        return None
+    current_team_value = sum(float(p) for p in driver_prices.values()) + \
+                         sum(float(p) for p in constructor_prices.values())
+    return bank + current_team_value
 
 
 def _count_transfers(old: Lineup | None, new: Lineup | None) -> int:

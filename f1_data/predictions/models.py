@@ -255,6 +255,14 @@ class MyLineup(models.Model):
     drs_boost_driver = models.ForeignKey(Driver, on_delete=models.CASCADE, related_name="+")
     constructor_1 = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="+")
     constructor_2 = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="+")
+    team_cost = models.DecimalField(
+        max_digits=6, decimal_places=1, null=True, blank=True,
+        help_text="Total cost of this lineup at submission time ($M)",
+    )
+    budget_cap = models.DecimalField(
+        max_digits=6, decimal_places=1, null=True, blank=True,
+        help_text="Total available budget at time of submission ($M)",
+    )
     actual_points = models.FloatField(null=True, blank=True)
     submitted_at = models.DateTimeField(auto_now_add=True)
 
