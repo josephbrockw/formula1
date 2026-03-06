@@ -5,8 +5,10 @@ from django.shortcuts import redirect, render
 
 from core.models import Event, Season
 from predictions.models import (
+    BacktestRun,
     FantasyConstructorPrice,
     FantasyDriverPrice,
+    FantasyDriverScore,
     LineupRecommendation,
     MyLineup,
     RacePrediction,
@@ -222,8 +224,22 @@ def next_race(request: HttpRequest, year: int, round_number: int) -> HttpRespons
 
 
 def backtest_explorer(request: HttpRequest) -> HttpResponse:
-    # Stub: implemented in Step 4
-    return render(request, "predictions/backtest.html", {})
+    runs = BacktestRun.objects.order_by("-created_at")
+    selected_id = request.GET.get("run_id")
+    race_results = []
+    selected_run = None
+    if selected_id:
+        selected_run = BacktestRun.objects.filter(id=selected_id).first()
+        if selected_run:
+            race_results = list(
+                selected_run.race_results
+                .select_related("event", "event__season")
+                .order_by("event__event_date")
+            )
+    context = {"runs": runs, "selected_run": selected_run, "race_results": race_results}
+    if request.headers.get("HX-Request"):
+        return render(request, "predictions/partials/backtest_run_detail.html", context)
+    return render(request, "predictions/backtest.html", context)
 
 
 # ---------------------------------------------------------------------------

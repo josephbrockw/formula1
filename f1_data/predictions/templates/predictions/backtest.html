@@ -1,6 +1,91 @@
 {% extends "predictions/base.html" %}
 {% block title %}Backtest Explorer{% endblock %}
 {% block content %}
+
 <h1>Backtest Explorer</h1>
-<p>Coming in Step 4.</p>
+
+{% if not runs %}
+<p class="empty-state">No backtest runs yet. Run <code>python manage.py backtest --seasons 2024 2025</code> to generate one.</p>
+{% else %}
+
+<div class="card" style="padding:0;margin-bottom:1.5rem">
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Created</th>
+        <th>Seasons</th>
+        <th>FS</th>
+        <th>Pred</th>
+        <th>Opt</th>
+        <th class="num">Races</th>
+        <th class="num">MAE Pos</th>
+        <th class="num">MAE Pts</th>
+        <th class="num">Lineup Pts</th>
+        <th class="num">Oracle</th>
+        <th class="num">Left on Table</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for run in runs %}
+      <tr style="cursor:pointer{% if selected_run.id == run.id %};background:var(--surface-raised){% endif %}"
+          hx-get="/backtest/?run_id={{ run.id }}"
+          hx-target="#run-detail"
+          hx-push-url="true">
+        <td style="color:var(--muted)">{{ run.id }}</td>
+        <td style="white-space:nowrap;font-size:0.85rem">{{ run.created_at|date:"M j, H:i" }}</td>
+        <td>{{ run.seasons }}</td>
+        <td><code>{{ run.feature_store_version }}</code></td>
+        <td><code>{{ run.predictor_version }}</code></td>
+        <td><code>{{ run.optimizer_version }}</code></td>
+        <td class="num">{{ run.race_results.count }}</td>
+        <td class="num">{% if run.mean_mae_position is not None %}{{ run.mean_mae_position|floatformat:2 }}{% else %}<span class="neutral">—</span>{% endif %}</td>
+        <td class="num">{% if run.mean_mae_fantasy_points is not None %}{{ run.mean_mae_fantasy_points|floatformat:2 }}{% else %}<span class="neutral">—</span>{% endif %}</td>
+        <td class="num">{% if run.total_lineup_points is not None %}{{ run.total_lineup_points|floatformat:0 }}{% else %}<span class="neutral">—</span>{% endif %}</td>
+        <td class="num neutral">{% if run.total_optimal_points is not None %}{{ run.total_optimal_points|floatformat:0 }}{% else %}<span class="neutral">—</span>{% endif %}</td>
+        <td class="num worse">{% if run.left_on_table is not None %}{{ run.left_on_table|floatformat:0 }}{% else %}<span class="neutral">—</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div id="run-detail">
+  {% include "predictions/partials/backtest_run_detail.html" %}
+</div>
+
+{% endif %}
+
+<div class="card" style="margin-top:1.5rem">
+  <h2>How to read this</h2>
+  <table style="font-size:0.85rem">
+    <tbody>
+      <tr>
+        <td style="padding:0.35rem 0.75rem 0.35rem 0;font-weight:600;white-space:nowrap">MAE Position</td>
+        <td style="color:var(--muted)">Mean absolute error in predicted finishing position across all drivers. Lower is better.</td>
+      </tr>
+      <tr>
+        <td style="padding:0.35rem 0.75rem 0.35rem 0;font-weight:600;white-space:nowrap">MAE Pts</td>
+        <td style="color:var(--muted)">Mean absolute error in predicted fantasy points. Lower is better.</td>
+      </tr>
+      <tr>
+        <td style="padding:0.35rem 0.75rem 0.35rem 0;font-weight:600;white-space:nowrap">Lineup Pts</td>
+        <td style="color:var(--muted)">Actual points scored by the ML-recommended lineup after the race.</td>
+      </tr>
+      <tr>
+        <td style="padding:0.35rem 0.75rem 0.35rem 0;font-weight:600;white-space:nowrap">Oracle</td>
+        <td style="color:var(--muted)">Best possible score with perfect predictions (hindsight).</td>
+      </tr>
+      <tr>
+        <td style="padding:0.35rem 0.75rem 0.35rem 0;font-weight:600;white-space:nowrap">Left on Table</td>
+        <td style="color:var(--muted)">Oracle − Lineup. How many points were available but not captured.</td>
+      </tr>
+    </tbody>
+  </table>
+  <p style="margin-top:0.75rem;font-size:0.8rem;color:var(--muted)">
+    Click any run row to see the per-race breakdown below.
+    Each run is created by <code>python manage.py backtest --seasons 2024 2025 --feature-store v2 --predictor v2 --optimizer v2</code>.
+  </p>
+</div>
+
 {% endblock %}

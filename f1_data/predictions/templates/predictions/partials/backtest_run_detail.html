@@ -1,0 +1,100 @@
+{% if not selected_run %}
+<p class="empty-state" style="margin:1.5rem 0">Click a run above to see the per-race breakdown.</p>
+{% else %}
+
+<div class="card" style="padding:0">
+
+  {# ── Summary strip ── #}
+  <div style="display:flex;gap:2rem;flex-wrap:wrap;padding:1.25rem 1.5rem;border-bottom:1px solid var(--border)">
+    <div>
+      <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Run #</div>
+      <div style="font-size:1.25rem;font-weight:700">{{ selected_run.id }}</div>
+    </div>
+    <div>
+      <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Seasons</div>
+      <div style="font-size:1.25rem;font-weight:700">{{ selected_run.seasons }}</div>
+    </div>
+    <div>
+      <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Config</div>
+      <div style="font-size:1rem;font-weight:600">fs={{ selected_run.feature_store_version }} pred={{ selected_run.predictor_version }} opt={{ selected_run.optimizer_version }}</div>
+    </div>
+    {% if selected_run.mean_mae_position is not None %}
+    <div>
+      <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Mean MAE Pos</div>
+      <div style="font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums">{{ selected_run.mean_mae_position|floatformat:2 }}</div>
+    </div>
+    {% endif %}
+    {% if selected_run.mean_mae_fantasy_points is not None %}
+    <div>
+      <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Mean MAE Pts</div>
+      <div style="font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums">{{ selected_run.mean_mae_fantasy_points|floatformat:2 }}</div>
+    </div>
+    {% endif %}
+    {% if selected_run.total_lineup_points is not None %}
+    <div>
+      <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Total Lineup Pts</div>
+      <div style="font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums">{{ selected_run.total_lineup_points|floatformat:0 }}</div>
+    </div>
+    {% endif %}
+    {% if selected_run.total_optimal_points is not None %}
+    <div>
+      <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Oracle Ceiling</div>
+      <div style="font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums;color:var(--muted)">{{ selected_run.total_optimal_points|floatformat:0 }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Per-race table ── #}
+  {% if not race_results %}
+  <p class="empty-state" style="padding:1.5rem">No race results saved for this run.</p>
+  {% else %}
+  <div style="overflow-x:auto">
+    <table>
+      <thead>
+        <tr>
+          <th>Event</th>
+          <th>Year</th>
+          <th class="num">Train N</th>
+          <th class="num">MAE Pos</th>
+          <th class="num">MAE Pts</th>
+          <th class="num">Lineup Pts</th>
+          <th class="num">Oracle</th>
+          <th class="num">Left on Table</th>
+          <th class="num">Transfers</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in race_results %}
+        <tr>
+          <td>{{ r.event.event_name }}</td>
+          <td style="color:var(--muted)">{{ r.event.season.year }}</td>
+          <td class="num">{{ r.n_train }}</td>
+          <td class="num">{{ r.mae_position|floatformat:2 }}</td>
+          <td class="num">{{ r.mae_fantasy_points|floatformat:2 }}</td>
+          <td class="num">{% if r.lineup_actual_points is not None %}{{ r.lineup_actual_points|floatformat:0 }}{% else %}<span class="neutral">—</span>{% endif %}</td>
+          <td class="num neutral">{% if r.optimal_actual_points is not None %}{{ r.optimal_actual_points|floatformat:0 }}{% else %}<span class="neutral">—</span>{% endif %}</td>
+          <td class="num {% if r.left_on_table is not None %}worse{% endif %}">
+            {% if r.left_on_table is not None %}{{ r.left_on_table|floatformat:0 }}{% else %}<span class="neutral">—</span>{% endif %}
+          </td>
+          <td class="num">{{ r.n_transfers }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="2">{{ race_results|length }} races</td>
+          <td></td>
+          <td class="num">{% if selected_run.mean_mae_position is not None %}{{ selected_run.mean_mae_position|floatformat:2 }}{% else %}—{% endif %}</td>
+          <td class="num">{% if selected_run.mean_mae_fantasy_points is not None %}{{ selected_run.mean_mae_fantasy_points|floatformat:2 }}{% else %}—{% endif %}</td>
+          <td class="num">{% if selected_run.total_lineup_points is not None %}{{ selected_run.total_lineup_points|floatformat:0 }}{% else %}—{% endif %}</td>
+          <td class="num neutral">{% if selected_run.total_optimal_points is not None %}{{ selected_run.total_optimal_points|floatformat:0 }}{% else %}—{% endif %}</td>
+          <td class="num worse">{% if selected_run.total_optimal_points is not None and selected_run.total_lineup_points is not None %}—{% else %}—{% endif %}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  {% endif %}
+
+</div>
+{% endif %}

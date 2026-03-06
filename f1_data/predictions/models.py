@@ -230,6 +230,78 @@ class LineupRecommendation(models.Model):
 
 
 # ---------------------------------------------------------------------------
+# Backtest persistent results
+# ---------------------------------------------------------------------------
+
+
+class BacktestRun(models.Model):
+    """
+    One record per `python manage.py backtest` invocation.
+
+    Stores the configuration flags and aggregate metrics so different
+    feature_store/predictor/optimizer combinations can be compared in the UI.
+    """
+
+    feature_store_version = models.CharField(max_length=20)
+    predictor_version = models.CharField(max_length=20)
+    optimizer_version = models.CharField(max_length=20)
+    seasons = models.CharField(max_length=100, help_text="Comma-separated years, e.g. '2023,2024'")
+    min_train = models.IntegerField(default=5)
+    budget = models.FloatField(default=100.0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    # Aggregate metrics — filled at end of run
+    mean_mae_position = models.FloatField(null=True, blank=True)
+    mean_mae_fantasy_points = models.FloatField(null=True, blank=True)
+    total_lineup_points = models.FloatField(null=True, blank=True)
+    total_optimal_points = models.FloatField(null=True, blank=True)
+
+    @property
+    def left_on_table(self) -> float | None:
+        if self.total_optimal_points is None or self.total_lineup_points is None:
+            return None
+        return self.total_optimal_points - self.total_lineup_points
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"BacktestRun #{self.pk} — {self.seasons} fs={self.feature_store_version} pred={self.predictor_version}"
+
+
+class BacktestRaceResult(models.Model):
+    """
+    One record per race per BacktestRun.
+
+    Mirrors the RaceBacktestResult dataclass fields so the walk-forward
+    evaluation results can be queried and displayed in the UI without
+    re-running the backtest.
+    """
+
+    run = models.ForeignKey(BacktestRun, on_delete=models.CASCADE, related_name="race_results")
+    event = models.ForeignKey(Event, on_delete=models.CASCADE)
+    n_train = models.IntegerField()
+    mae_position = models.FloatField()
+    mae_fantasy_points = models.FloatField()
+    lineup_predicted_points = models.FloatField(null=True, blank=True)
+    lineup_actual_points = models.FloatField(null=True, blank=True)
+    optimal_actual_points = models.FloatField(null=True, blank=True)
+    n_transfers = models.IntegerField(default=0)
+
+    @property
+    def left_on_table(self) -> float | None:
+        if self.optimal_actual_points is None or self.lineup_actual_points is None:
+            return None
+        return self.optimal_actual_points - self.lineup_actual_points
+
+    class Meta:
+        unique_together = [("run", "event")]
+        ordering = ["event__event_date"]
+
+    def __str__(self) -> str:
+        return f"Run #{self.run_id} — {self.event}"
+
+
+# ---------------------------------------------------------------------------
 # My actual submitted lineups
 # ---------------------------------------------------------------------------
 
