@@ -1,0 +1,206 @@
+{% extends "predictions/base.html" %}
+{% block title %}{{ event.event_name|default:"Next Race" }}{% endblock %}
+{% block content %}
+
+{% if no_data %}
+<div class="empty-state" style="padding:4rem 0">
+  <p>No predictions yet.</p>
+  <p style="margin-top:0.5rem">Run <code>python manage.py next_race --year YYYY --round N</code> first.</p>
+</div>
+{% else %}
+
+<h1>
+  Round {{ event.round_number }} — {{ event.event_name }}
+  <span style="font-size:1rem;font-weight:400;color:var(--muted);margin-left:0.75rem">{{ event.event_date }}</span>
+</h1>
+
+{% if not has_predictions %}
+<div class="card empty-state">
+  No predictions for this round.<br>
+  Run <code>python manage.py next_race --year {{ event.season.year }} --round {{ event.round_number }}</code>
+</div>
+{% else %}
+
+<div class="two-col" style="align-items:start">
+
+  {# ── LEFT: Predictions ──────────────────── #}
+  <div>
+    <div class="card" style="padding:0">
+      <div style="padding:1rem 1.25rem 0.75rem;border-bottom:1px solid var(--border)">
+        <h2 style="margin:0">Driver Predictions</h2>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Driver</th>
+              <th>Team</th>
+              <th class="num">Pred. Pts</th>
+              <th class="num">Range</th>
+              <th class="num">Price</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in prediction_rows %}
+            {% with is_in_rec=False %}
+            <tr {% if rec_drivers %}{% for d in rec_drivers %}{% if d.id == row.driver.id %}class="rec-highlight"{% endif %}{% endfor %}{% endif %}>
+              <td>
+                <a href="{% url 'driver_detail' event.season.year row.driver.code %}" class="driver-link">
+                  <strong>{{ row.driver.code }}</strong>
+                </a>
+                {% if rec %}
+                  {% for d in rec_drivers %}{% if d.id == row.driver.id %}
+                    {% if d.id == rec.drs_boost_driver_id %}<span class="tag" style="background:var(--red);color:#fff;margin-left:4px">DRS</span>{% endif %}
+                  {% endif %}{% endfor %}
+                {% endif %}
+              </td>
+              <td class="neutral" style="font-size:0.8rem">{{ row.driver.team.name }}</td>
+              <td class="num"><strong>{{ row.predicted_pts|floatformat:1 }}</strong></td>
+              <td class="num neutral" style="font-size:0.8rem">
+                {{ row.lower|floatformat:1 }} – {{ row.upper|floatformat:1 }}
+              </td>
+              <td class="num neutral">
+                {% if row.price %}${{ row.price }}M{% else %}—{% endif %}
+              </td>
+            </tr>
+            {% endwith %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {# ── RIGHT: Team + Recommendation ──────── #}
+  <div>
+
+    {# Current team #}
+    {% if current_lineup %}
+    <div class="card" style="margin-bottom:1rem">
+      <h2>Current Team</h2>
+      <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.75rem">
+        {% for d in current_drivers %}
+        <span class="tag {% if d.id == current_lineup.drs_boost_driver_id %}drs-tag{% endif %}">
+          {{ d.code }}{% if d.id == current_lineup.drs_boost_driver_id %} ★{% endif %}
+        </span>
+        {% endfor %}
+      </div>
+      <div style="display:flex;gap:0.4rem;margin-bottom:0.75rem">
+        {% for t in current_constructors %}
+        <span class="tag">{{ t.name }}</span>
+        {% endfor %}
+      </div>
+      {% if current_lineup.team_cost and current_lineup.budget_cap %}
+      {% with bank=current_lineup.budget_cap|floatformat:1 cost=current_lineup.team_cost|floatformat:1 %}
+      <div style="font-size:0.8rem;color:var(--muted)">
+        Cost: ${{ cost }}M &nbsp;·&nbsp; Cap: ${{ bank }}M
+      </div>
+      {% endwith %}
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="card" style="margin-bottom:1rem">
+      <h2>Current Team</h2>
+      <p class="neutral" style="font-size:0.875rem">No lineup recorded yet — this may be the first race.</p>
+    </div>
+    {% endif %}
+
+    {# Recommended changes #}
+    {% if rec %}
+    <div class="card" style="margin-bottom:1rem">
+      <h2>Recommended Changes</h2>
+
+      {% if current_lineup %}
+        {% if n_transfers == 0 %}
+        <p style="color:var(--green);font-weight:600">No changes — keep your current team.</p>
+        {% else %}
+        <table style="margin-bottom:0.75rem">
+          <tbody>
+            {% for d in dropped_drivers %}
+            <tr>
+              <td style="width:2rem;color:var(--red);font-weight:700">OUT</td>
+              <td>{{ d.code }} <span class="neutral" style="font-size:0.8rem">{{ d.team.name }}</span></td>
+            </tr>
+            {% endfor %}
+            {% for d in added_drivers %}
+            <tr>
+              <td style="width:2rem;color:var(--green);font-weight:700">IN</td>
+              <td>{{ d.code }} <span class="neutral" style="font-size:0.8rem">{{ d.team.name }}</span></td>
+            </tr>
+            {% endfor %}
+            {% for t in dropped_teams %}
+            <tr>
+              <td style="color:var(--red);font-weight:700">OUT</td>
+              <td>{{ t.name }}</td>
+            </tr>
+            {% endfor %}
+            {% for t in added_teams %}
+            <tr>
+              <td style="color:var(--green);font-weight:700">IN</td>
+              <td>{{ t.name }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <div style="font-size:0.85rem;color:var(--muted)">
+          {{ n_transfers }} transfer{{ n_transfers|pluralize }}
+        </div>
+        {% endif %}
+      {% else %}
+      <p class="neutral" style="font-size:0.875rem">No prior lineup to diff against.</p>
+      {% endif %}
+    </div>
+
+    {# Recommended lineup #}
+    <div class="card">
+      <h2>Recommended Lineup</h2>
+      <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.75rem">
+        {% for d in rec_drivers %}
+        <span class="tag {% if d.id == rec.drs_boost_driver_id %}drs-tag{% endif %}">
+          {{ d.code }}{% if d.id == rec.drs_boost_driver_id %} ★{% endif %}
+        </span>
+        {% endfor %}
+      </div>
+      <div style="display:flex;gap:0.4rem;margin-bottom:1rem">
+        {% for t in rec_constructors %}
+        <span class="tag">{{ t.name }}</span>
+        {% endfor %}
+      </div>
+      <table>
+        <tbody>
+          <tr>
+            <td class="neutral" style="font-size:0.8rem">Total cost</td>
+            <td class="num">${{ rec.total_cost }}M</td>
+          </tr>
+          <tr>
+            <td class="neutral" style="font-size:0.8rem">Predicted points</td>
+            <td class="num"><strong>{{ rec.predicted_points|floatformat:1 }}</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    {% else %}
+    <div class="card">
+      <h2>Recommendation</h2>
+      <p class="neutral" style="font-size:0.875rem">
+        No recommendation yet.<br>
+        Run <code>next_race</code> to generate one.
+      </p>
+    </div>
+    {% endif %}
+
+  </div>{# end right panel #}
+</div>
+
+{% endif %}{# has_predictions #}
+{% endif %}{# no_data #}
+
+<style>
+  .driver-link { color: inherit; text-decoration: none; }
+  .driver-link:hover { color: var(--red); }
+  tr.rec-highlight { background: color-mix(in srgb, var(--green) 6%, transparent); }
+  .drs-tag { background: var(--red) !important; color: #fff !important; }
+</style>
+
+{% endblock %}

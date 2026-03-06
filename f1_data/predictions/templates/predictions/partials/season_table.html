@@ -1,0 +1,66 @@
+{% if rows %}
+<table>
+  <thead>
+    <tr>
+      <th>Rd</th>
+      <th>Event</th>
+      <th class="num">My Points</th>
+      <th class="num">ML Predicted</th>
+      <th class="num">ML Actual</th>
+      <th class="num">Oracle Max</th>
+      <th class="num">Left on Table</th>
+      <th class="num">Transfers</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr{% if row.beat_ml %} class="beat-row"{% endif %}>
+      <td class="num neutral">{{ row.event.round_number }}</td>
+      <td>{{ row.event.event_name }}</td>
+
+      {# My Points — green if beat ML rec, red if worse #}
+      <td class="num {% if row.beat_ml %}beat{% elif row.ml_actual is not None and row.my_points is not None %}worse{% endif %}">
+        {% if row.my_points is not None %}{{ row.my_points|floatformat:0 }}{% else %}<span class="neutral">—</span>{% endif %}
+      </td>
+
+      {# ML Predicted — what the model thought would happen #}
+      <td class="num neutral">
+        {% if row.ml_predicted is not None %}{{ row.ml_predicted|floatformat:0 }}{% else %}<span class="neutral">—</span>{% endif %}
+      </td>
+
+      {# ML Actual — what the recommended lineup actually scored #}
+      <td class="num neutral">
+        {% if row.ml_actual is not None %}{{ row.ml_actual|floatformat:0 }}{% else %}<span class="neutral">—</span>{% endif %}
+      </td>
+
+      {# Oracle Max — theoretical ceiling with perfect knowledge #}
+      <td class="num neutral">
+        {% if row.oracle is not None %}{{ row.oracle|floatformat:0 }}{% else %}<span class="neutral">—</span>{% endif %}
+      </td>
+
+      {# Points left on table = oracle − my points #}
+      <td class="num {% if row.left_on_table is not None %}worse{% endif %}">
+        {% if row.left_on_table is not None %}{{ row.left_on_table|floatformat:0 }}{% else %}<span class="neutral">—</span>{% endif %}
+      </td>
+
+      <td class="num neutral">
+        {% if row.n_transfers == 0 %}<span class="neutral">—</span>{% else %}{{ row.n_transfers }}{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="2">Season total ({{ rows|length }} races)</td>
+      <td class="num">{% if my_total %}{{ my_total|floatformat:0 }}{% else %}—{% endif %}</td>
+      <td class="num neutral">—</td>
+      <td class="num neutral">{% if ml_actual_total %}{{ ml_actual_total|floatformat:0 }}{% else %}—{% endif %}</td>
+      <td class="num neutral">{% if oracle_total %}{{ oracle_total|floatformat:0 }}{% else %}—{% endif %}</td>
+      <td class="num neutral worse">{% if oracle_total and my_total %}{{ vs_oracle|floatformat:0 }}{% else %}—{% endif %}</td>
+      <td class="num neutral">{{ races_beat }} beat ML</td>
+    </tr>
+  </tfoot>
+</table>
+{% else %}
+<p class="empty-state">No lineups recorded for {{ selected_year }}. Run <code>record_my_lineup</code> to add your first lineup.</p>
+{% endif %}

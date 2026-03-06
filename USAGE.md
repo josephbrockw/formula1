@@ -144,7 +144,12 @@ python manage.py record_my_lineup \
   --constructors McLaren Ferrari
 
 # 4. Plan for the next race
+#    This also auto-scores round N (MyLineup + LineupRecommendation + oracle)
+#    if FantasyDriverScore data was imported in step 2.
 python manage.py next_race --year YYYY --round N+1
+
+# If you need to score a round without running next_race:
+python manage.py score_lineup --year YYYY --round N
 ```
 
 #### Chrome extension CSV file naming
@@ -174,3 +179,39 @@ Options:
 - `--budget 100` (default: 100)
 
 Output includes per-race MAE, actual lineup points, oracle optimal points, and number of transfers made.
+
+---
+
+## Web UI
+
+Start the dev server from `f1_data/`:
+
+```bash
+python manage.py runserver
+```
+
+Then open `http://localhost:8000/`.
+
+### Pages
+
+| URL | Page | What it shows |
+|-----|------|---------------|
+| `/` | Season Dashboard | Race-by-race table: my points, ML predicted, ML actual, oracle ceiling, left on table. Season selector reloads the table without a full page refresh (htmx). |
+| `/race/next/` | Next Race | Redirects to the current season's latest predicted round. |
+| `/race/<year>/<round>/` | Next Race | Driver predictions with confidence range, current team, recommended changes, budget. |
+| `/backtest/` | Backtest Explorer | Per-race MAE and lineup quality filtered by model version. |
+| `/driver/<year>/<code>/` | Driver Deep-Dive | Prediction accuracy and price history for one driver. |
+| `/prices/<year>/` | Price Trajectory | Predicted price movements for all drivers and constructors over the next 3 races. |
+
+### What populates each page
+
+The UI is read-only — it displays data written by CLI commands. Nothing is re-computed on page load.
+
+| Data shown | Written by |
+|---|---|
+| My points | `record_my_lineup` then `next_race` (auto-scores) or `score_lineup` |
+| ML predicted points | `next_race` (via `LineupRecommendation.predicted_points`) |
+| ML actual / oracle ceiling | `next_race` (auto-scores previous round) or `score_lineup` |
+| Driver predictions + confidence | `next_race` (via `RacePrediction`) |
+| Price history | `import_fantasy_csv` or `compute_fantasy_prices` |
+| Price trajectory | Computed from `FantasyDriverPrice` + `RacePrediction` on page load |

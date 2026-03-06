@@ -3,15 +3,26 @@ from __future__ import annotations
 import pandas as pd
 from django.core.management.base import BaseCommand, CommandError
 
-from core.models import Driver, Event, Team
-from predictions.features.v2_pandas import V2FeatureStore
 from decimal import Decimal
 
-from predictions.models import FantasyConstructorPrice, FantasyDriverPrice, MyLineup
+from core.models import Driver, Event, Team
+from predictions.features.v2_pandas import V2FeatureStore
+from predictions.models import (
+    FantasyConstructorPrice,
+    FantasyDriverPrice,
+    LineupRecommendation,
+    MyLineup,
+)
 from predictions.optimizers.base import Lineup
 from predictions.optimizers.greedy_v2 import GreedyOptimizerV2
 from predictions.predictors.xgboost_v1 import build_training_dataset
 from predictions.predictors.xgboost_v2 import XGBoostPredictorV2
+from predictions.scoring import (
+    compute_oracle,
+    load_actual_constructor_pts,
+    load_actual_driver_pts,
+    score_roster,
+)
 
 
 class Command(BaseCommand):
@@ -39,6 +50,8 @@ class Command(BaseCommand):
             .select_related("season", "circuit")
             .order_by("event_date")
         )
+
+        _auto_score_previous(event, self.stdout)
 
         self.stdout.write(f"\nNext Race: Round {round_number} — {event.event_name} ({event.event_date})")
         self.stdout.write(f"Training on {len(train_events)} past events\n")
@@ -124,6 +137,77 @@ class Command(BaseCommand):
             _print_transfers(self.stdout, current_lineup, lineup, drivers_by_id, teams_by_id, banked_transfers)
 
         _print_lineup(self.stdout, lineup, drivers_by_id, teams_by_id, driver_prices, constructor_prices, predictions)
+
+
+# ---------------------------------------------------------------------------
+# Auto-scoring
+# ---------------------------------------------------------------------------
+
+
+def _auto_score_previous(target_event: Event, stdout) -> None:
+    """
+    If the most recently completed race in this season has unscored records and
+    post-race fantasy data available, score it now — no separate command needed.
+
+    Silently skips if: no prior event, no FantasyDriverScore data, or already scored.
+    """
+    prev_event = (
+        Event.objects.filter(
+            season=target_event.season,
+            event_date__lt=target_event.event_date,
+        )
+        .order_by("-event_date")
+        .first()
+    )
+    if prev_event is None:
+        return
+
+    actual_driver_pts = load_actual_driver_pts(prev_event)
+    if not actual_driver_pts:
+        return  # Post-race CSV not imported yet — nothing to score
+
+    needs_scoring = (
+        MyLineup.objects.filter(event=prev_event, actual_points__isnull=True).exists()
+        or LineupRecommendation.objects.filter(event=prev_event, actual_points__isnull=True).exists()
+    )
+    if not needs_scoring:
+        return
+
+    actual_constructor_pts = load_actual_constructor_pts(prev_event)
+    oracle = compute_oracle(prev_event, actual_driver_pts, actual_constructor_pts, budget=100.0)
+
+    try:
+        my_lineup = MyLineup.objects.get(event=prev_event, actual_points__isnull=True)
+        my_pts = score_roster(
+            [my_lineup.driver_1_id, my_lineup.driver_2_id, my_lineup.driver_3_id,
+             my_lineup.driver_4_id, my_lineup.driver_5_id],
+            [my_lineup.constructor_1_id, my_lineup.constructor_2_id],
+            my_lineup.drs_boost_driver_id,
+            actual_driver_pts,
+            actual_constructor_pts,
+        )
+        my_lineup.actual_points = my_pts
+        my_lineup.save(update_fields=["actual_points"])
+    except MyLineup.DoesNotExist:
+        my_pts = None
+
+    for rec in LineupRecommendation.objects.filter(event=prev_event, actual_points__isnull=True):
+        rec_pts = score_roster(
+            [rec.driver_1_id, rec.driver_2_id, rec.driver_3_id, rec.driver_4_id, rec.driver_5_id],
+            [rec.constructor_1_id, rec.constructor_2_id],
+            rec.drs_boost_driver_id,
+            actual_driver_pts,
+            actual_constructor_pts,
+        )
+        rec.actual_points = rec_pts
+        rec.oracle_actual_points = oracle
+        rec.save(update_fields=["actual_points", "oracle_actual_points"])
+
+    my_pts_str = f"{my_pts:.0f}" if my_pts is not None else "—"
+    oracle_str = f"{oracle:.0f}" if oracle is not None else "—"
+    stdout.write(
+        f"Auto-scored {prev_event.event_name}: my lineup={my_pts_str} pts  oracle ceiling={oracle_str} pts"
+    )
 
 
 # ---------------------------------------------------------------------------

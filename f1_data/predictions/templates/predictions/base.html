@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}F1 Fantasy{% endblock %} — F1 Fantasy ML</title>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'predictions/style.css' %}">
+</head>
+<body>
+  <nav class="nav">
+    <a class="nav-brand" href="{% url 'season_dashboard' %}">F1 Fantasy ML</a>
+    <ul class="nav-links">
+      <li><a href="{% url 'season_dashboard' %}">Season</a></li>
+      <li><a href="{% url 'next_race_redirect' %}">Next Race</a></li>
+      <li><a href="{% url 'backtest_explorer' %}">Backtest</a></li>
+      <li><a href="/prices/2025/">Prices</a></li>
+    </ul>
+  </nav>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

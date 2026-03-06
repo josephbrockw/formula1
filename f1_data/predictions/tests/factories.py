@@ -10,6 +10,8 @@ from predictions.models import (
     FantasyConstructorScore,
     FantasyDriverPrice,
     FantasyDriverScore,
+    LineupRecommendation,
+    MyLineup,
 )
 
 
@@ -197,4 +199,60 @@ def make_constructor_score(
         points=points,
         race_total=race_total,
         season_total=race_total,
+    )
+
+
+def make_my_lineup(
+    event: Event,
+    drivers: list[Driver],
+    constructors: list[Team],
+    drs_driver: Driver | None = None,
+    actual_points: float | None = None,
+) -> MyLineup:
+    assert len(drivers) == 5
+    assert len(constructors) == 2
+    return MyLineup.objects.create(
+        event=event,
+        driver_1=drivers[0],
+        driver_2=drivers[1],
+        driver_3=drivers[2],
+        driver_4=drivers[3],
+        driver_5=drivers[4],
+        drs_boost_driver=drs_driver or drivers[0],
+        constructor_1=constructors[0],
+        constructor_2=constructors[1],
+        actual_points=actual_points,
+    )
+
+
+def make_lineup_recommendation(
+    event: Event,
+    drivers: list[Driver],
+    constructors: list[Team],
+    drs_driver: Driver | None = None,
+    predicted_points: float = 100.0,
+    actual_points: float | None = None,
+    oracle_actual_points: float | None = None,
+    strategy_type: str = "single_race",
+    model_version: str = "xgb_v2",
+) -> LineupRecommendation:
+    assert len(drivers) == 5
+    assert len(constructors) == 2
+    from decimal import Decimal
+    return LineupRecommendation.objects.create(
+        event=event,
+        driver_1=drivers[0],
+        driver_2=drivers[1],
+        driver_3=drivers[2],
+        driver_4=drivers[3],
+        driver_5=drivers[4],
+        drs_boost_driver=drs_driver or drivers[0],
+        constructor_1=constructors[0],
+        constructor_2=constructors[1],
+        total_cost=Decimal("95.0"),
+        predicted_points=predicted_points,
+        actual_points=actual_points,
+        oracle_actual_points=oracle_actual_points,
+        strategy_type=strategy_type,
+        model_version=model_version,
     )

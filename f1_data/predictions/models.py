@@ -214,6 +214,10 @@ class LineupRecommendation(models.Model):
     total_cost = models.DecimalField(max_digits=6, decimal_places=1, help_text="Total lineup cost in $M")
     predicted_points = models.FloatField()
     actual_points = models.FloatField(null=True, blank=True)
+    oracle_actual_points = models.FloatField(
+        null=True, blank=True,
+        help_text="Best achievable score with perfect knowledge (run score_lineup post-race)",
+    )
     strategy_type = models.CharField(max_length=50, help_text="e.g. 'single_race', 'multi_race_horizon_5'")
     model_version = models.CharField(max_length=50)
     created_at = models.DateTimeField(auto_now_add=True)

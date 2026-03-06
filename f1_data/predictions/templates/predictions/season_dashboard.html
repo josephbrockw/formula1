@@ -1,0 +1,58 @@
+{% extends "predictions/base.html" %}
+{% block title %}Season Dashboard{% endblock %}
+{% block content %}
+
+<h1>Season Dashboard</h1>
+
+<div class="filter-bar">
+  <label for="season-select">Season</label>
+  <select id="season-select"
+          hx-get="/"
+          hx-target="#race-table"
+          hx-push-url="true"
+          name="year">
+    {% for yr in seasons %}
+    <option value="{{ yr }}" {% if yr == selected_year %}selected{% endif %}>{{ yr }}</option>
+    {% endfor %}
+  </select>
+  <span class="htmx-indicator neutral">Loading…</span>
+</div>
+
+{% if my_total or ml_actual_total %}
+<div class="card" style="display:flex;gap:3rem;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;">
+  <div>
+    <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">My Season Total</div>
+    <div style="font-size:2rem;font-weight:700;font-variant-numeric:tabular-nums;">{{ my_total|floatformat:0 }}</div>
+  </div>
+  {% if ml_actual_total %}
+  <div>
+    <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">vs ML Rec.</div>
+    <div style="font-size:2rem;font-weight:700;font-variant-numeric:tabular-nums;color:{% if vs_ml >= 0 %}var(--green){% else %}var(--red){% endif %}">
+      {% if vs_ml >= 0 %}+{% endif %}{{ vs_ml|floatformat:0 }}
+    </div>
+  </div>
+  {% endif %}
+  {% if oracle_total %}
+  <div>
+    <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Left on Table</div>
+    <div style="font-size:2rem;font-weight:700;font-variant-numeric:tabular-nums;color:var(--amber)">{{ vs_oracle|floatformat:0 }}</div>
+  </div>
+  {% endif %}
+  <div>
+    <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Races Beat ML</div>
+    <div style="font-size:2rem;font-weight:700;">{{ races_beat }} / {{ rows|length }}</div>
+  </div>
+</div>
+{% endif %}
+
+<div class="card" style="padding:0">
+  <div id="race-table" style="overflow-x:auto;padding:0 0.25rem">
+    {% include "predictions/partials/season_table.html" %}
+  </div>
+</div>
+
+<style>
+  tr.beat-row td:first-child { border-left: 3px solid var(--green); }
+</style>
+
+{% endblock %}
