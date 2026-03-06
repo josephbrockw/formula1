@@ -1,0 +1,159 @@
+{% extends "predictions/base.html" %}
+{% block title %}Data Coverage{% endblock %}
+{% block content %}
+
+<h1>Data Coverage</h1>
+
+<div class="card" style="padding:0;margin-bottom:1.5rem">
+  <table>
+    <thead>
+      <tr>
+        <th>Year</th>
+        <th class="num" colspan="2">FastF1 Sessions</th>
+        <th class="num">Failed</th>
+        <th class="num" colspan="2">Prices</th>
+        <th class="num" colspan="2">Scores</th>
+        <th class="num" colspan="2">Predictions</th>
+      </tr>
+      <tr style="font-size:0.75rem;color:var(--muted)">
+        <th></th>
+        <th class="num">Done / Past</th>
+        <th class="num">%</th>
+        <th class="num"></th>
+        <th class="num">Events</th>
+        <th class="num">/ Total</th>
+        <th class="num">Events</th>
+        <th class="num">/ Total</th>
+        <th class="num">Events</th>
+        <th class="num">/ Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td style="font-weight:600">{{ row.year }}</td>
+
+        {# FastF1 sessions #}
+        <td class="num">{{ row.sessions_completed }} / {{ row.sessions_past }}</td>
+        <td class="num">
+          {% if row.sessions_past == 0 %}
+            <span class="neutral">—</span>
+          {% elif row.sessions_pct == 100 %}
+            <span class="beat">{{ row.sessions_pct }}%</span>
+          {% elif row.sessions_pct >= 50 %}
+            <span style="color:var(--amber)">{{ row.sessions_pct }}%</span>
+          {% else %}
+            <span class="worse">{{ row.sessions_pct }}%</span>
+          {% endif %}
+        </td>
+
+        {# Failed #}
+        <td class="num">
+          {% if row.sessions_failed > 0 %}
+            <span class="worse">{{ row.sessions_failed }}</span>
+          {% else %}
+            <span class="neutral">0</span>
+          {% endif %}
+        </td>
+
+        {# Fantasy prices #}
+        <td class="num">{{ row.price_events }}</td>
+        <td class="num">
+          {% if row.total_events == 0 %}
+            <span class="neutral">—</span>
+          {% elif row.price_events == row.total_events %}
+            <span class="beat">{{ row.total_events }}</span>
+          {% elif row.price_events > 0 %}
+            <span style="color:var(--amber)">{{ row.total_events }}</span>
+          {% else %}
+            <span class="neutral">{{ row.total_events }}</span>
+          {% endif %}
+        </td>
+
+        {# Fantasy scores #}
+        <td class="num">{{ row.score_events }}</td>
+        <td class="num">
+          {% if row.total_events == 0 %}
+            <span class="neutral">—</span>
+          {% elif row.score_events == row.total_events %}
+            <span class="beat">{{ row.total_events }}</span>
+          {% elif row.score_events > 0 %}
+            <span style="color:var(--amber)">{{ row.total_events }}</span>
+          {% else %}
+            <span class="neutral">{{ row.total_events }}</span>
+          {% endif %}
+        </td>
+
+        {# ML predictions #}
+        <td class="num">{{ row.prediction_events }}</td>
+        <td class="num">
+          {% if row.total_events == 0 %}
+            <span class="neutral">—</span>
+          {% elif row.prediction_events == row.total_events %}
+            <span class="beat">{{ row.total_events }}</span>
+          {% elif row.prediction_events > 0 %}
+            <span style="color:var(--amber)">{{ row.total_events }}</span>
+          {% else %}
+            <span class="neutral">{{ row.total_events }}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# ── Gaps ── #}
+<h2>Collection Gaps</h2>
+{% if not gaps %}
+<p class="beat" style="padding:1rem 0;font-size:0.95rem">All past sessions collected.</p>
+{% else %}
+<div class="card" style="padding:0">
+  <table>
+    <thead>
+      <tr>
+        <th>Year</th>
+        <th>Round</th>
+        <th>Event</th>
+        <th>Session</th>
+        <th>Status</th>
+        <th>Fix</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for session in gaps %}
+      <tr>
+        <td class="neutral">{{ session.event.season.year }}</td>
+        <td class="neutral">R{{ session.event.round_number }}</td>
+        <td>{{ session.event.event_name }}</td>
+        <td><code>{{ session.session_type }}</code></td>
+        <td>
+          {% if session.collection_status == "failed" %}
+            <span class="worse">failed</span>
+          {% else %}
+            <span class="neutral">{{ session.collection_status|default:"pending" }}</span>
+          {% endif %}
+        </td>
+        <td style="font-size:0.8rem;color:var(--muted)">
+          <code>python manage.py collect_data --year {{ session.event.season.year }}</code>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div class="card" style="margin-top:1.5rem;font-size:0.85rem;color:var(--muted)">
+  <strong style="color:var(--text)">What each column means</strong>
+  <table style="margin-top:0.75rem">
+    <tbody>
+      <tr><td style="padding:0.25rem 1rem 0.25rem 0;white-space:nowrap;color:var(--text)">FastF1 Sessions</td><td>Sessions with lap data, results, and weather collected via <code>collect_data</code>.</td></tr>
+      <tr><td style="padding:0.25rem 1rem 0.25rem 0;white-space:nowrap;color:var(--text)">Prices</td><td>Events with <code>FantasyDriverPrice</code> records. Required for lineup optimisation. Import via <code>import_fantasy_csv</code> or <code>compute_fantasy_prices</code>.</td></tr>
+      <tr><td style="padding:0.25rem 1rem 0.25rem 0;white-space:nowrap;color:var(--text)">Scores</td><td>Events with <code>FantasyDriverScore</code> records. Required for ML training targets. Import via <code>import_fantasy_csv</code>.</td></tr>
+      <tr><td style="padding:0.25rem 1rem 0.25rem 0;white-space:nowrap;color:var(--text)">Predictions</td><td>Events where <code>next_race</code> has generated <code>RacePrediction</code> records.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

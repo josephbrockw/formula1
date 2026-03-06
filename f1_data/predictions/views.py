@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from django.db.models import Count, OuterRef, Subquery
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
+from django.utils import timezone
 
-from core.models import Event, Season
+from core.models import Event, Season, Session, SessionCollectionStatus
+from core.tasks.gap_detector import get_collection_summary
 from predictions.models import (
     BacktestRun,
     FantasyConstructorPrice,
@@ -298,6 +301,66 @@ def price_trajectory(request: HttpRequest, year: int) -> HttpResponse:
         "rows": rows,
     }
     return render(request, "predictions/price_trajectory.html", context)
+
+
+# ---------------------------------------------------------------------------
+# Data Coverage
+# ---------------------------------------------------------------------------
+
+
+def data_coverage(request: HttpRequest) -> HttpResponse:
+    summary = get_collection_summary()
+
+    # Events per season with fantasy data
+    price_events = dict(
+        FantasyDriverPrice.objects.values("event__season__year")
+        .annotate(n=Count("event_id", distinct=True))
+        .values_list("event__season__year", "n")
+    )
+    score_events = dict(
+        FantasyDriverScore.objects.values("event__season__year")
+        .annotate(n=Count("event_id", distinct=True))
+        .values_list("event__season__year", "n")
+    )
+    prediction_events = dict(
+        RacePrediction.objects.values("event__season__year")
+        .annotate(n=Count("event_id", distinct=True))
+        .values_list("event__season__year", "n")
+    )
+    total_events = dict(
+        Event.objects.values("season__year")
+        .annotate(n=Count("id"))
+        .values_list("season__year", "n")
+    )
+
+    rows = []
+    for year, c in sorted(summary.items(), reverse=True):
+        n_events = total_events.get(year, 0)
+        rows.append({
+            "year": year,
+            "sessions_past": c["past"],
+            "sessions_completed": c["completed"],
+            "sessions_failed": c["failed"],
+            "sessions_pct": round(100 * c["completed"] / c["past"]) if c["past"] else 0,
+            "price_events": price_events.get(year, 0),
+            "score_events": score_events.get(year, 0),
+            "prediction_events": prediction_events.get(year, 0),
+            "total_events": n_events,
+        })
+
+    # Past sessions not completed (failed or never attempted)
+    status_sq = Subquery(
+        SessionCollectionStatus.objects.filter(session=OuterRef("pk")).values("status")[:1]
+    )
+    gaps = list(
+        Session.objects.filter(date__lt=timezone.now())
+        .annotate(collection_status=status_sq)
+        .exclude(collection_status="completed")
+        .select_related("event__season")
+        .order_by("event__season__year", "event__round_number", "session_type")
+    )
+
+    return render(request, "predictions/data_coverage.html", {"rows": rows, "gaps": gaps})
 
 
 # ---------------------------------------------------------------------------

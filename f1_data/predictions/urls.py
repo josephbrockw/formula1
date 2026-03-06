@@ -11,4 +11,5 @@ urlpatterns = [
     path("backtest/", views.backtest_explorer, name="backtest_explorer"),
     path("driver/<int:year>/<str:driver_code>/", views.driver_detail, name="driver_detail"),
     path("prices/<int:year>/", views.price_trajectory, name="price_trajectory"),
+    path("data/", views.data_coverage, name="data_coverage"),
 ]
