@@ -1,6 +1,78 @@
 {% extends "predictions/base.html" %}
-{% block title %}Price Trajectory{% endblock %}
+{% block title %}Price Trajectory {{ selected_year }}{% endblock %}
 {% block content %}
+
 <h1>Price Trajectory</h1>
-<p>Coming in Step 6.</p>
+
+<div class="filter-bar">
+  <label for="year-select">Season</label>
+  <select id="year-select" onchange="window.location='/prices/' + this.value + '/'">
+    {% for yr in years %}
+    <option value="{{ yr }}" {% if yr == selected_year %}selected{% endif %}>{{ yr }}</option>
+    {% endfor %}
+  </select>
+</div>
+
+{% if not rows %}
+<p class="empty-state">No price data for {{ selected_year }}. Run <code>python manage.py import_fantasy_csv</code> or <code>compute_fantasy_prices</code>.</p>
+{% else %}
+
+<div class="card" style="padding:0;overflow-x:auto">
+  <table style="min-width:max-content">
+    <thead>
+      <tr>
+        <th style="position:sticky;left:0;background:var(--surface);z-index:1;min-width:5rem">Driver</th>
+        <th class="num" style="min-width:4rem">Start</th>
+        {% for event in events %}
+        <th class="num" style="min-width:4rem;font-size:0.8rem">R{{ event.round_number }}</th>
+        {% endfor %}
+        <th class="num" style="min-width:4.5rem">Net Δ</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td style="position:sticky;left:0;background:var(--surface);font-weight:600">{{ row.driver.code }}</td>
+        <td class="num neutral" style="font-size:0.85rem">${{ row.start }}</td>
+        {% for cell in row.cells %}
+        <td class="num" style="font-size:0.85rem">
+          {% if cell %}
+            {% if cell.price_change > 0 %}
+              <span class="up">${{ cell.price }}</span>
+              <div style="font-size:0.7rem" class="up">+{{ cell.price_change }}</div>
+            {% elif cell.price_change < 0 %}
+              <span class="down">${{ cell.price }}</span>
+              <div style="font-size:0.7rem" class="down">{{ cell.price_change }}</div>
+            {% else %}
+              <span class="neutral">${{ cell.price }}</span>
+              <div style="font-size:0.7rem;color:transparent">0</div>
+            {% endif %}
+          {% else %}
+            <span class="neutral">—</span>
+          {% endif %}
+        </td>
+        {% endfor %}
+        <td class="num" style="font-weight:700">
+          {% if row.net is not None %}
+            {% if row.net > 0 %}<span class="up">+{{ row.net }}</span>
+            {% elif row.net < 0 %}<span class="down">{{ row.net }}</span>
+            {% else %}<span class="neutral">0.0</span>
+            {% endif %}
+          {% else %}
+            <span class="neutral">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p style="margin-top:1rem;font-size:0.8rem;color:var(--muted)">
+  Sorted by net price change (biggest risers first). Prices in $M. Change shown per race round.
+  Data from Chrome extension CSV imports.
+</p>
+
+{% endif %}
+
 {% endblock %}

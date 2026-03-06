@@ -98,7 +98,9 @@ python manage.py compute_fantasy_prices \
   --constructor-prices ../data/starting_prices/YYYY_constructors.csv
 ```
 
-This simulates the F1 Fantasy price formula forward from the starting prices. Prices will be overwritten with real values as you import Chrome extension CSVs each week.
+This simulates the F1 Fantasy price formula forward from the starting prices using whatever `FantasyDriverScore` records exist. Before any races have been run, there are no scores, so every driver's AvgPPM is 0 — the formula classifies this as "terrible" and applies the maximum price drop (-0.6) to every round. This is expected placeholder data, not real predictions.
+
+**Prices become accurate as you import real data each week.** After each race, run `import_fantasy_csv` (step 2 of the weekly workflow) then re-run `compute_fantasy_prices`. Each re-run replaces the computed records for the whole season using actual scores where available and projections for future rounds.
 
 Verify:
 ```bash
@@ -201,7 +203,7 @@ Then open `http://localhost:8000/`.
 | `/race/<year>/<round>/` | Next Race | Driver predictions with confidence range, current team, recommended changes, budget. |
 | `/backtest/` | Backtest Explorer | Per-race MAE and lineup quality filtered by model version. |
 | `/driver/<year>/<code>/` | Driver Deep-Dive | Prediction accuracy and price history for one driver. |
-| `/prices/<year>/` | Price Trajectory | Predicted price movements for all drivers and constructors over the next 3 races. |
+| `/prices/<year>/` | Price Trajectory | Season-long price history for all drivers, one column per race round. Color-coded by change direction. Sorted by net change (biggest risers first). Pre-season data shows -0.6 everywhere until real race scores are imported. |
 
 ### What populates each page
 

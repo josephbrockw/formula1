@@ -258,8 +258,46 @@ def driver_detail(request: HttpRequest, year: int, driver_code: str) -> HttpResp
 
 
 def price_trajectory(request: HttpRequest, year: int) -> HttpResponse:
-    # Stub: implemented in Step 6
-    return render(request, "predictions/price_trajectory.html", {})
+    years = list(
+        FantasyDriverPrice.objects.values_list("event__season__year", flat=True)
+        .distinct().order_by("event__season__year")
+    )
+
+    all_prices = list(
+        FantasyDriverPrice.objects.filter(event__season__year=year)
+        .select_related("driver", "event")
+        .order_by("event__round_number", "driver__code")
+    )
+
+    # Ordered events and drivers from the price records themselves
+    events: dict = {}
+    drivers: dict = {}
+    for p in all_prices:
+        events.setdefault(p.event_id, p.event)
+        drivers.setdefault(p.driver_id, p.driver)
+
+    event_list = list(events.values())
+    driver_list = sorted(drivers.values(), key=lambda d: d.code)
+    price_lookup = {(p.driver_id, p.event_id): p for p in all_prices}
+
+    rows = []
+    for driver in driver_list:
+        cells = [price_lookup.get((driver.id, e.id)) for e in event_list]
+        prices_present = [c for c in cells if c is not None]
+        start = float(prices_present[0].price) if prices_present else None
+        end = float(prices_present[-1].price) if prices_present else None
+        net = round(end - start, 1) if start is not None and end is not None else None
+        rows.append({"driver": driver, "cells": cells, "start": start, "end": end, "net": net})
+
+    rows.sort(key=lambda r: r["net"] or 0, reverse=True)
+
+    context = {
+        "years": years,
+        "selected_year": year,
+        "events": event_list,
+        "rows": rows,
+    }
+    return render(request, "predictions/price_trajectory.html", context)
 
 
 # ---------------------------------------------------------------------------
