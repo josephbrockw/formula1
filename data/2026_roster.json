@@ -1,0 +1,40 @@
+{
+  "season": 2026,
+  "teams": [
+    {"name": "Mercedes",        "fastf1_name": "Mercedes"},
+    {"name": "Ferrari",         "fastf1_name": "Ferrari"},
+    {"name": "McLaren",         "fastf1_name": "McLaren"},
+    {"name": "Red Bull Racing", "fastf1_name": "Red Bull Racing"},
+    {"name": "Aston Martin",    "fastf1_name": "Aston Martin"},
+    {"name": "Williams",        "fastf1_name": "Williams"},
+    {"name": "Alpine",          "fastf1_name": "Alpine"},
+    {"name": "Haas F1 Team",    "fastf1_name": "Haas F1 Team"},
+    {"name": "Racing Bulls",    "fastf1_name": "Racing Bulls"},
+    {"name": "Audi",            "fastf1_name": "Audi"},
+    {"name": "Cadillac",        "fastf1_name": "Cadillac"}
+  ],
+  "drivers": [
+    {"code": "RUS", "full_name": "George Russell",        "fastf1_full_name": "George Russell",        "driver_number": 63, "team": "Mercedes"},
+    {"code": "ANT", "full_name": "Andrea Kimi Antonelli", "fastf1_full_name": "Kimi Antonelli",         "driver_number": 12, "team": "Mercedes"},
+    {"code": "LEC", "full_name": "Charles Leclerc",       "fastf1_full_name": "Charles Leclerc",       "driver_number": 16, "team": "Ferrari"},
+    {"code": "HAM", "full_name": "Lewis Hamilton",        "fastf1_full_name": "Lewis Hamilton",        "driver_number": 44, "team": "Ferrari"},
+    {"code": "NOR", "full_name": "Lando Norris",          "fastf1_full_name": "Lando Norris",          "driver_number": 4,  "team": "McLaren"},
+    {"code": "PIA", "full_name": "Oscar Piastri",         "fastf1_full_name": "Oscar Piastri",         "driver_number": 81, "team": "McLaren"},
+    {"code": "VER", "full_name": "Max Verstappen",        "fastf1_full_name": "Max Verstappen",        "driver_number": 1,  "team": "Red Bull Racing"},
+    {"code": "HAD", "full_name": "Isack Hadjar",          "fastf1_full_name": "Isack Hadjar",          "driver_number": 6,  "team": "Red Bull Racing"},
+    {"code": "STR", "full_name": "Lance Stroll",          "fastf1_full_name": "Lance Stroll",          "driver_number": 18, "team": "Aston Martin"},
+    {"code": "ALO", "full_name": "Fernando Alonso",       "fastf1_full_name": "Fernando Alonso",       "driver_number": 14, "team": "Aston Martin"},
+    {"code": "ALB", "full_name": "Alexander Albon",       "fastf1_full_name": "Alexander Albon",       "driver_number": 23, "team": "Williams"},
+    {"code": "SAI", "full_name": "Carlos Sainz",          "fastf1_full_name": "Carlos Sainz",          "driver_number": 55, "team": "Williams"},
+    {"code": "GAS", "full_name": "Pierre Gasly",          "fastf1_full_name": "Pierre Gasly",          "driver_number": 10, "team": "Alpine"},
+    {"code": "COL", "full_name": "Franco Colapinto",      "fastf1_full_name": "Franco Colapinto",      "driver_number": 43, "team": "Alpine"},
+    {"code": "OCO", "full_name": "Esteban Ocon",          "fastf1_full_name": "Esteban Ocon",          "driver_number": 31, "team": "Haas F1 Team"},
+    {"code": "BEA", "full_name": "Oliver Bearman",        "fastf1_full_name": "Oliver Bearman",        "driver_number": 87, "team": "Haas F1 Team"},
+    {"code": "LAW", "full_name": "Liam Lawson",           "fastf1_full_name": "Liam Lawson",           "driver_number": 30, "team": "Racing Bulls"},
+    {"code": "LIN", "full_name": "Arvid Lindblad",        "fastf1_full_name": "Arvid Lindblad",        "driver_number": 41, "team": "Racing Bulls"},
+    {"code": "HUL", "full_name": "Nico Hulkenberg",       "fastf1_full_name": "Nico Hulkenberg",       "driver_number": 27, "team": "Audi"},
+    {"code": "BOR", "full_name": "Gabriel Bortoleto",     "fastf1_full_name": "Gabriel Bortoleto",     "driver_number": 5,  "team": "Audi"},
+    {"code": "PER", "full_name": "Sergio Perez",          "fastf1_full_name": "Sergio Perez",          "driver_number": 11, "team": "Cadillac"},
+    {"code": "BOT", "full_name": "Valtteri Bottas",       "fastf1_full_name": "Valtteri Bottas",       "driver_number": 77, "team": "Cadillac"}
+  ]
+}

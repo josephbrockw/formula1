@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import datetime
+import json
 import time
 import traceback
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pandas as pd
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
@@ -81,7 +84,9 @@ def collect_single_session(session_model: Session) -> None:
     event = session_model.event
     ff1_session = load_session(event.season.year, event.round_number, session_model.session_type)
 
-    driver_lookup, team_lookup = _sync_drivers_teams(ff1_session.results, event.season)
+    driver_lookup, team_lookup = _sync_drivers_teams(
+        ff1_session.results, event.season, _load_team_name_map(event.season.year)
+    )
     results, results_skipped = map_session_results(
         ff1_session.results, session_model, driver_lookup, team_lookup
     )
@@ -143,20 +148,26 @@ def _sync_schedule(year: int) -> None:
 
 
 def _sync_drivers_teams(
-    results_df: pd.DataFrame, season: Season
+    results_df: pd.DataFrame,
+    season: Season,
+    team_name_map: dict[str, str] | None = None,
 ) -> tuple[dict[str, Driver], dict[str, Team]]:
+    # team_name_map lets us normalise FastF1's team name strings to the canonical
+    # names already in the DB (seeded pre-season). Without it, FastF1 returning
+    # "Cadillac F1 Team" when we have "Cadillac" would create a duplicate row.
     team_lookup: dict[str, Team] = {}
     driver_lookup: dict[str, Driver] = {}
 
     for _, row in results_df.iterrows():
-        team_name = str(row["TeamName"])
-        if team_name not in team_lookup:
+        fastf1_team_name = str(row["TeamName"])
+        canonical_name = (team_name_map or {}).get(fastf1_team_name, fastf1_team_name)
+
+        if canonical_name not in team_lookup:
             team, _ = Team.objects.get_or_create(
                 season=season,
-                name=team_name,
-                defaults={"full_name": team_name},
+                name=canonical_name,
             )
-            team_lookup[team_name] = team
+            team_lookup[canonical_name] = team
 
         code = str(row["Abbreviation"])
         driver, _ = Driver.objects.get_or_create(
@@ -165,12 +176,32 @@ def _sync_drivers_teams(
             defaults={
                 "full_name": str(row["FullName"]),
                 "driver_number": int(row["DriverNumber"]),
-                "team": team_lookup[team_name],
+                "team": team_lookup[canonical_name],
             },
         )
         driver_lookup[code] = driver
 
     return driver_lookup, team_lookup
+
+
+def _load_team_name_map(year: int) -> dict[str, str]:
+    # Looks for data/<year>_roster.json next to the manage.py directory.
+    # Team.name in the DB is stored as fastf1_name from the roster, so FastF1's
+    # team name strings should match directly. This map handles edge cases where
+    # FastF1 uses an unexpected alias — update the roster JSON to add the alias
+    # as a separate entry with fastf1_name pointing to the correct DB team name.
+    # Returns empty dict if no roster file exists (no-op for historical seasons).
+    roster_path = Path(settings.BASE_DIR).parent / "data" / f"{year}_roster.json"
+    if not roster_path.exists():
+        return {}
+    data = json.loads(roster_path.read_text())
+    # Build alias → fastf1_name map: only entries where name != fastf1_name
+    # act as redirects (e.g. "Cadillac" → "Cadillac F1 Team").
+    return {
+        t["name"]: t["fastf1_name"]
+        for t in data.get("teams", [])
+        if "fastf1_name" in t and t["fastf1_name"] != t["name"]
+    }
 
 
 def _sessions_to_collect(
