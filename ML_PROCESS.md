@@ -12,28 +12,56 @@ For the full plan (architecture, upgrade paths, build order) see `ML_PIPELINE_PL
 core app (existing)          predictions app (new)
 ─────────────────────        ─────────────────────────────────────────
 Season                  →    Feature Store
-Circuit                      └── v1_pandas.V1FeatureStore
-Team                              queries ORM, returns feature dicts
+Circuit                      ├── v1_pandas.V1FeatureStore  (15 features)
+Team                         └── v2_pandas.V2FeatureStore  (+ qualifying pos, team pts, practice delta) ← current best
 Driver                                     │
 Event                                      ▼
-Session                      Performance Predictor  [Step 3 — done]
-SessionResult                └── XGBoost v1
-Lap                                        │
-WeatherSample                              ▼
-                             Optimizer  [Step 4 — done]
-                             └── Greedy knapsack v1
+Session                      Performance Predictor
+SessionResult                ├── XGBoostPredictor (v1)     MSE mean ± training residual std
+Lap                          └── XGBoostPredictorV2 (v2)   MSE mean + q10/q90 quantile bounds ← current best
+WeatherSample                              │
+                                           ▼
+                             Optimizer
+                             ├── GreedyOptimizer (v1)       PPM greedy only
+                             └── GreedyOptimizerV2 (v2)     PPM greedy + upgrade pass + transfer constraints ← current best
                                            │
                                            ▼
-                             Backtester  [Step 5 — done]
+                             Backtester  (walk-forward, price-aware)
                                            │
                                            ▼
-                             Management Commands  [Step 6 — done]
+                             Management Commands
                              ├── predict_race
                              ├── optimize_lineup
-                             └── backtest
+                             └── backtest  (--feature-store v1/v2, --predictor v1/v2)
 ```
 
 The `predictions` app depends on `core` data but `core` knows nothing about predictions. Each layer talks to the next through a defined interface (Python Protocol), so implementations can be swapped independently.
+
+---
+
+## Current Best Configuration
+
+```bash
+python manage.py backtest --seasons 2024 2025 --min-train 5
+# defaults: --feature-store v2 --predictor v2
+```
+
+| Config | MAE Pos | MAE Pts | Total Lineup Pts | Pts Left on Table |
+|--------|---------|---------|-----------------|-------------------|
+| v1 predictor + v2 feature store | 3.64 | 8.50 | 8374 | 869 |
+| v2 predictor (pure median) + v2 feature store | 3.64 | 8.20 | 7771 | 1472 |
+| **v2 predictor (hybrid) + v2 feature store** | **3.64** | **8.50** | **8374** | **869** |
+
+Tested over 2024–2025 seasons, 43 predictions, `--min-train 5`.
+
+The hybrid V2 matches V1 on lineup quality (same MSE model drives selection) while adding
+calibrated confidence bounds. The pure-median approach had lower MAE but 603 fewer lineup
+points — the median undervalues right-skewed high-upside drivers.
+
+The current best predictor is `XGBoostPredictorV2` (hybrid), which uses an MSE model for
+`predicted_fantasy_points` (expected value, correct target for the greedy optimizer) and separate
+q10/q90 quantile models for `confidence_lower`/`confidence_upper` (calibrated 80% prediction
+interval). This is the default for all commands.
 
 ---
 
@@ -171,6 +199,64 @@ After `fit()`, computes the standard deviation of prediction errors on the train
 - **Two models, not one multi-output model:** Sklearn's `MultiOutputRegressor` wraps a single model for multiple targets. Two separate models are equivalent but easier to inspect and tune independently.
 
 ---
+
+## XGBoost Performance Predictor v2 (Hybrid)
+
+**Location:** `f1_data/predictions/predictors/xgboost_v2.py`
+
+**What was built:**
+
+`XGBoostPredictorV2` — satisfies the same `PerformancePredictor` Protocol as V1 (same `fit()`/`predict()` signature, same output columns). Internally it trains **four** models instead of two.
+
+| Model | Objective | Output column |
+|-------|-----------|---------------|
+| `_position_model` | MSE (standard) | `predicted_position` |
+| `_points_mean_model` | MSE (standard) | `predicted_fantasy_points` |
+| `_points_q10` | `reg:quantileerror`, α=0.1 | `confidence_lower` |
+| `_points_q90` | `reg:quantileerror`, α=0.9 | `confidence_upper` |
+
+**Why hybrid (MSE mean + quantile bounds), not pure quantile?**
+
+The first V2 iteration used the q50 (median) for `predicted_fantasy_points`. Backtest over 2024–2025 (43 races) showed:
+
+| Approach | MAE Pts | Total lineup pts |
+|----------|---------|-----------------|
+| V1: MSE mean ± residual std | 8.50 | **8374** |
+| Pure quantile (q50 as point estimate) | 8.20 | 7771 |
+
+Lower MAE but 603 fewer lineup points. The problem: F1 fantasy points are right-skewed. A driver who usually scores 8pts but occasionally hits 50pts has mean ~15pts and median ~8pts. The greedy optimizer ranks by `predicted_fantasy_points / price`, so systematically undervaluing high-upside drivers produces worse lineups. **The mean is the correct optimization target for a greedy expected-value maximizer.**
+
+The hybrid keeps MSE for the point estimate (good optimizer signal) and adds quantile regression only for the bounds (calibrated uncertainty).
+
+**What `confidence_lower`/`confidence_upper` actually mean:**
+
+V1's ±std bounds were symmetric and measured in-sample error — always an underestimate and the same width for every driver. V2's q10/q90 bounds are:
+- **Asymmetric**: a right-skewed driver has a wider upper gap (q90 - mean) than lower gap (mean - q10)
+- **Driver-specific width**: high-variance drivers (inconsistent results) get wider bands than consistent midfielders
+- **Calibrated**: trained to hit the actual 10th/90th percentile of outcomes, not a post-hoc approximation
+
+**Quantile crossing:**
+
+Three independently trained quantile models can produce out-of-order predictions on unseen data (e.g. q10 > q90 on a specific row). The `predict()` method enforces ordering via `np.minimum(q10, q90)` and `np.maximum(q10, q90)`.
+
+**Future use of confidence bounds:**
+
+The current greedy optimizer ignores the bounds entirely — it only uses `predicted_fantasy_points`. The bounds become useful when the optimizer is upgraded to risk-adjusted selection:
+
+```python
+# Future optimizer objective (not yet built):
+score = predicted_fantasy_points - λ * (confidence_upper - confidence_lower)
+```
+
+Wide interval → high-risk/high-reward pick. λ controls risk appetite. This is the planned "stochastic optimization" upgrade.
+
+**Key decisions:**
+
+- **No q50 model:** A median model adds training cost but the q50 prediction is not needed anywhere in the current pipeline. If the future optimizer needs the median it can be added then.
+- **Shared utilities with V1:** `build_training_dataset` and `walk_forward_splits` live in `xgboost_v1.py` and are imported directly — no duplication.
+- **`backtest` defaults updated:** `--feature-store` and `--predictor` both default to `v2`. Pass `--predictor v1` to compare against the baseline.
+
+Tests: `predictions/tests/test_xgboost_v2.py` — 9 tests (`SimpleTestCase`, no DB)
 
 ---
 
@@ -455,4 +541,6 @@ Tests: `TestApplyTransferConstraints` in `predictions/tests/test_greedy_v2.py`
 | Step 7b | compute_fantasy_points (from raw FastF1 data) | deferred |
 | Step 8 | Price predictor v1 (heuristic) | done |
 | Optimizer improvements | Budget maximisation, price-aware selection, transfer constraints | done |
+| Predictor v2 | Hybrid MSE mean + quantile bounds | done |
 | Step 9 | Slack integration | todo |
+| Future | Risk-aware optimizer: `score = mean - λ·(upper - lower)` | deferred — needs stronger baseline first |

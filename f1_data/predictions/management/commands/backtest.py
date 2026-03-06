@@ -8,6 +8,7 @@ from predictions.features.v1_pandas import V1FeatureStore
 from predictions.features.v2_pandas import V2FeatureStore
 from predictions.optimizers.greedy_v2 import GreedyOptimizerV2
 from predictions.predictors.xgboost_v1 import XGBoostPredictor
+from predictions.predictors.xgboost_v2 import XGBoostPredictorV2
 
 
 class Command(BaseCommand):
@@ -36,8 +37,14 @@ class Command(BaseCommand):
         parser.add_argument(
             "--feature-store",
             choices=["v1", "v2"],
-            default="v1",
-            help="Feature store version to use (default: v1)",
+            default="v2",
+            help="Feature store version to use (default: v2)",
+        )
+        parser.add_argument(
+            "--predictor",
+            choices=["v1", "v2"],
+            default="v2",
+            help="Predictor version to use (default: v2)",
         )
 
     def handle(self, *args, **options) -> None:
@@ -45,6 +52,7 @@ class Command(BaseCommand):
         min_train = options["min_train"]
         budget = options["budget"]
         feature_store = V2FeatureStore() if options["feature_store"] == "v2" else V1FeatureStore()
+        predictor = XGBoostPredictorV2() if options["predictor"] == "v2" else XGBoostPredictor()
 
         events = list(
             Event.objects.filter(season__year__in=seasons)
@@ -80,7 +88,7 @@ class Command(BaseCommand):
         result = Backtester().run(
             events=events,
             feature_store=feature_store,
-            predictor=XGBoostPredictor(),
+            predictor=predictor,
             optimizer=GreedyOptimizerV2(),
             min_train=min_train,
             budget=budget,
