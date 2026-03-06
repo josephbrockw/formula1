@@ -5,6 +5,7 @@ from django.core.management.base import BaseCommand, CommandError
 from core.models import Event
 from predictions.evaluation.backtester import Backtester, RaceBacktestResult
 from predictions.features.v1_pandas import V1FeatureStore
+from predictions.features.v2_pandas import V2FeatureStore
 from predictions.optimizers.greedy_v2 import GreedyOptimizerV2
 from predictions.predictors.xgboost_v1 import XGBoostPredictor
 
@@ -32,11 +33,18 @@ class Command(BaseCommand):
             default=100.0,
             help="Lineup budget cap in $M (default: 100)",
         )
+        parser.add_argument(
+            "--feature-store",
+            choices=["v1", "v2"],
+            default="v1",
+            help="Feature store version to use (default: v1)",
+        )
 
     def handle(self, *args, **options) -> None:
         seasons = options["seasons"]
         min_train = options["min_train"]
         budget = options["budget"]
+        feature_store = V2FeatureStore() if options["feature_store"] == "v2" else V1FeatureStore()
 
         events = list(
             Event.objects.filter(season__year__in=seasons)
@@ -71,7 +79,7 @@ class Command(BaseCommand):
 
         result = Backtester().run(
             events=events,
-            feature_store=V1FeatureStore(),
+            feature_store=feature_store,
             predictor=XGBoostPredictor(),
             optimizer=GreedyOptimizerV2(),
             min_train=min_train,

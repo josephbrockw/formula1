@@ -1,0 +1,55 @@
+(venv) Mac-2:f1_data joewilkinson$ python manage.py backtest --seasons 2024 2025 --min-train 5 --feature-store v2
+Backtesting seasons [2024, 2025] — 48 events, 43 predictions, min_train=5
+            Event                                Train  MAE Pos  MAE Pts  Trades   Lineup  Optimal
+--------------------------------------------------------------------------------------------------
+[  1/43]  Miami Grand Prix                         5     3.21     7.95       0    172.0    258.0
+[  2/43]  Emilia Romagna Grand Prix                6     3.26     8.65       2    148.0    190.0
+[  3/43]  Monaco Grand Prix                        7     3.22     6.91       1     90.0    155.0
+[  4/43]  Canadian Grand Prix                      8     6.05    11.04       1    118.0    245.0
+[  5/43]  Spanish Grand Prix                       9     2.98     5.78       1    231.0    186.0
+[  6/43]  Austrian Grand Prix                     10     3.61    11.70       1    218.0    295.0
+[  7/43]  British Grand Prix                      11     4.70     9.02       1    157.0    174.0
+[  8/43]  Hungarian Grand Prix                    12     3.65     5.16       1    238.0    205.0
+[  9/43]  Belgian Grand Prix                      13     4.06     7.98       1    237.0    213.0
+[ 10/43]  Dutch Grand Prix                        14     3.17     6.38       1    216.0    184.0
+[ 11/43]  Italian Grand Prix                      15     2.50     4.90       1    228.0    224.0
+[ 12/43]  Azerbaijan Grand Prix                   16     3.88     8.44       1    208.0    221.0
+[ 13/43]  Singapore Grand Prix                    17     2.67     5.78       1    206.0    160.0
+[ 14/43]  United States Grand Prix                18     2.99     7.73       1    271.0    214.0
+[ 15/43]  Mexico City Grand Prix                  19     4.06     7.12       1    198.0    197.0
+[ 16/43]  São Paulo Grand Prix                    20     4.66    12.41       1    207.0    290.0
+[ 17/43]  Las Vegas Grand Prix                    21     3.12    11.25       1    252.0    248.0
+[ 18/43]  Qatar Grand Prix                        22     3.94     8.43       1    192.0    184.0
+[ 19/43]  Abu Dhabi Grand Prix                    23     3.81     8.40       1    218.0    224.0
+[ 20/43]  Australian Grand Prix                   24     4.51    10.77       7     44.0    211.0
+[ 21/43]  Chinese Grand Prix                      25     4.08     9.66       1    221.0    284.0
+[ 22/43]  Japanese Grand Prix                     26     2.69     6.67       1    192.0    180.0
+[ 23/43]  Bahrain Grand Prix                      27     3.13     8.15       1    242.0    250.0
+[ 24/43]  Saudi Arabian Grand Prix                28     2.53     5.93       1    176.0    160.0
+[ 25/43]  Miami Grand Prix                        29     2.20    10.62       1    191.0    255.0
+[ 26/43]  Emilia Romagna Grand Prix               30     2.86     6.83       1    239.0    211.0
+[ 27/43]  Monaco Grand Prix                       31     3.92     7.95       1    174.0    215.0
+[ 28/43]  Spanish Grand Prix                      32     3.35     8.79       1    199.0    262.0
+[ 29/43]  Canadian Grand Prix                     33     4.45     8.94       1    197.0    246.0
+[ 30/43]  Austrian Grand Prix                     34     3.77    10.00       1    205.0    259.0
+[ 31/43]  British Grand Prix                      35     4.32     9.67       1    210.0    215.0
+[ 32/43]  Belgian Grand Prix                      36     3.56     5.78       1    190.0    149.0
+[ 33/43]  Hungarian Grand Prix                    37     3.24     5.03       1    213.0    230.0
+[ 34/43]  Dutch Grand Prix                        38     5.14    13.27       1    116.0    245.0
+[ 35/43]  Italian Grand Prix                      39     2.45     5.39       1    198.0    208.0
+[ 36/43]  Azerbaijan Grand Prix                   40     4.31     9.94       1    136.0    172.0
+[ 37/43]  Singapore Grand Prix                    41     3.38     7.53       1    166.0    177.0
+[ 38/43]  United States Grand Prix                42     2.62     8.91       1    213.0    220.0
+[ 39/43]  Mexico City Grand Prix                  43     3.66     7.15       1    186.0    164.0
+[ 40/43]  São Paulo Grand Prix                    44     4.99    16.21       1    282.0    296.0
+[ 41/43]  Las Vegas Grand Prix                    45     3.96     9.83       1    219.0    196.0
+[ 42/43]  Qatar Grand Prix                        46     3.99     9.54       1    158.0    162.0
+[ 43/43]  Abu Dhabi Grand Prix                    47     3.80     8.03       1    202.0    209.0
+
+Races evaluated:        43
+Mean MAE (position):    3.64
+Mean MAE (fantasy pts): 8.50
+Total lineup points:    8374.0
+Total optimal points:   9243.0
+Points left on table:   869.0
+(venv) Mac-2:f1_data joewilkinson$

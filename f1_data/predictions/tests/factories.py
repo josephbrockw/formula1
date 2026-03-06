@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from datetime import datetime as dt
+from datetime import timezone as tz
 
-from core.models import Circuit, Driver, Event, Lap, Season, Session, SessionResult, Team
+from core.models import Circuit, Driver, Event, Lap, Season, Session, SessionResult, Team, WeatherSample
 from predictions.models import (
     FantasyConstructorPrice,
     FantasyConstructorScore,
@@ -154,6 +156,28 @@ def make_constructor_price(
         price_change=0.0,
         pick_percentage=10.0,
         season_fantasy_points=0,
+    )
+
+
+_WEATHER_TS_BASE = dt(2024, 1, 1, 12, 0, 0, tzinfo=tz.utc)
+
+
+def make_weather_sample(
+    session: Session,
+    rainfall: bool = False,
+    track_temp: float = 35.0,
+) -> WeatherSample:
+    seq = WeatherSample.objects.filter(session=session).count()
+    return WeatherSample.objects.create(
+        session=session,
+        timestamp=_WEATHER_TS_BASE + timedelta(minutes=seq),
+        air_temp=25.0,
+        track_temp=track_temp,
+        humidity=50.0,
+        pressure=1013.0,
+        wind_speed=5.0,
+        wind_direction=180,
+        rainfall=rainfall,
     )
 
 
