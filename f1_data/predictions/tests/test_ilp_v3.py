@@ -3,7 +3,7 @@ from __future__ import annotations
 import itertools
 
 import pandas as pd
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, override_settings
 
 from predictions.optimizers.base import Lineup, LineupOptimizer
 from predictions.optimizers.ilp_v3 import ILPOptimizer
@@ -246,6 +246,21 @@ class TestILPTransferPenalty(SimpleTestCase):
         constraints = {"current_lineup": self.current, "free_transfers": 2, "transfer_penalty": 10.0}
         result = self.optimizer.optimize_single_race(self.drivers, self.constructors, 100.0, constraints)
         self.assertLessEqual(result.total_cost, 100.0)
+
+    @override_settings(ILP_TRANSFER_THRESHOLD=50.0)
+    def test_high_threshold_prevents_marginal_transfer(self) -> None:
+        """With a very high threshold, a small-gain transfer is blocked."""
+        # Driver 6 scores 24pts vs current 20pts — gain ~8pts << threshold 50pts
+        constraints = {"current_lineup": self.current, "free_transfers": 2, "transfer_penalty": 10.0}
+        result = self.optimizer.optimize_single_race(self.drivers, self.constructors, 100.0, constraints)
+        self.assertNotIn(6, result.driver_ids)  # small-gain player not brought in
+
+    @override_settings(ILP_TRANSFER_THRESHOLD=0.0)
+    def test_zero_threshold_allows_marginal_transfer(self) -> None:
+        """With threshold=0, any positive gain triggers a transfer (baseline behaviour)."""
+        constraints = {"current_lineup": self.current, "free_transfers": 2, "transfer_penalty": 10.0}
+        result = self.optimizer.optimize_single_race(self.drivers, self.constructors, 100.0, constraints)
+        self.assertIn(7, result.driver_ids)  # high-scoring driver 7 (50pts) is selected
 
 
 # ---------------------------------------------------------------------------

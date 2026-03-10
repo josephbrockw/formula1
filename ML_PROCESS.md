@@ -582,12 +582,26 @@ This is preferable to greedy v2's post-hoc approach (find ideal lineup, then pru
 
 The backtester deducts transfer penalties from `lineup_actual_points` separately (based on real post-race counts). `predicted_points` is the raw lineup score used for comparison and reporting. Subtracting the penalty from it would cause double-counting.
 
+**Noise sensitivity and the transfer threshold:**
+
+ILP v3 is provably optimal given perfect predictions. In practice, with MAE = 8.5 pts,
+small predicted gains are often noise rather than signal. With 2 free transfers, the ILP
+will freely make a 2nd transfer for any predicted gain > 0 pts — including gains that are
+well within the noise margin. Backtesting showed this caused v3 to underperform v2 greedy
+(6554 vs 7432 total pts over 2024–2025) despite having a higher oracle ceiling (10324 vs 9243).
+
+The fix is `ILP_TRANSFER_THRESHOLD` in settings.py. This adds a per-transfer cost T to new
+players in the ILP objective — effectively requiring predicted gain > T before a transfer is
+made. Set to 8.5 (current MAE) initially. As prediction accuracy improves and MAE falls,
+lower this value to let the ILP be more aggressive. A perfectly accurate model would use T=0.
+
 **Key decisions:**
 
 - **scipy.optimize.milp, not PuLP:** scipy is already a transitive dependency (via FastF1→matplotlib→numpy). No new packages needed. `milp` requires scipy ≥ 1.7.0 (2021).
 - **Slack variable `e` (not auxiliary binary variables):** Transfer count is a linear expression (sum of x[i] for new drivers). Introducing `e ≥ transfers - free` with `e ≥ 0` and minimising `penalty·e` handles `max(0, ...)` without branching. Clean and efficient.
 - **`e` is continuous, not integer:** Transfer counts are always integers since x/y are binary, so `e` settles at an integer anyway. Leaving it continuous avoids constraining the solver unnecessarily.
 - **`--all-optimizers` flag (not `--all`):** The existing `--all` sweeps 8 combos of feature-store × predictor × optimizer (v1/v2 only). `--all-optimizers` is a separate flag that fixes fs=v2, pred=v2 and sweeps v1/v2/v3 — isolating the optimizer dimension for a clean comparison.
+- **`ILP_TRANSFER_THRESHOLD` in settings.py:** Calibrate to current MAE. Prevents the ILP acting on noise. Revisit whenever the predictor is significantly improved.
 
 **Verification:**
 

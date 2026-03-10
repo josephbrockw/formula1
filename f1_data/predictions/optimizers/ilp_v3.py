@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from django.conf import settings
 from scipy.optimize import Bounds, LinearConstraint, milp
 
 from predictions.optimizers.base import Lineup
@@ -62,8 +63,26 @@ class ILPOptimizer:
         has_e = current_lineup is not None
         n_vars = 2 * n_d + n_c + (1 if has_e else 0)
 
-        # --- Objective ---
-        obj = np.concatenate([-d_pts, -c_pts, -d_pts])
+        # Build new-player masks (1.0 = new, 0.0 = retained). Only when we have a prior lineup.
+        new_d = np.zeros(n_d)
+        new_c = np.zeros(n_c)
+        if has_e:
+            current_driver_ids = set(current_lineup.driver_ids)
+            current_constructor_ids = set(current_lineup.constructor_ids)
+            new_d = np.array([
+                0.0 if int(drivers.loc[i, "driver_id"]) in current_driver_ids else 1.0
+                for i in range(n_d)
+            ])
+            new_c = np.array([
+                0.0 if int(constructors.loc[j, "team_id"]) in current_constructor_ids else 1.0
+                for j in range(n_c)
+            ])
+
+        # Objective: negate score + threshold cost for new players (not applied to z/DRS variables).
+        threshold = getattr(settings, "ILP_TRANSFER_THRESHOLD", 0.0)
+        d_obj = -d_pts + threshold * new_d
+        c_obj = -c_pts + threshold * new_c
+        obj = np.concatenate([d_obj, c_obj, -d_pts])  # z uses raw -d_pts (DRS is always free)
         if has_e:
             obj = np.append(obj, transfer_penalty)
 
@@ -105,16 +124,6 @@ class ILPOptimizer:
 
         # (6) Transfer budget: Σ_{new} x[i] + Σ_{new} y[j] - e ≤ free_transfers
         if has_e:
-            current_driver_ids = set(current_lineup.driver_ids)
-            current_constructor_ids = set(current_lineup.constructor_ids)
-            new_d = np.array([
-                0.0 if int(drivers.loc[i, "driver_id"]) in current_driver_ids else 1.0
-                for i in range(n_d)
-            ])
-            new_c = np.array([
-                0.0 if int(constructors.loc[j, "team_id"]) in current_constructor_ids else 1.0
-                for j in range(n_c)
-            ])
             A_rows.append(np.concatenate([new_d, new_c, np.zeros(n_d), [-1.0]]))
             lb_rows.append(-np.inf)
             ub_rows.append(float(free_transfers))
