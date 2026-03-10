@@ -178,9 +178,24 @@ python manage.py backtest --seasons 2023 2024 2025 --min-train 5
 Options:
 - `--feature-store v1|v2` (default: v2)
 - `--predictor v1|v2` (default: v2)
+- `--optimizer v1|v2|v3` (default: v2)
 - `--budget 100` (default: 100)
 
 Output includes per-race MAE, actual lineup points, oracle optimal points, and number of transfers made.
+
+### Comparing optimizers
+
+Run all three optimizer versions (v1 greedy, v2 greedy+upgrade, v3 ILP) with fixed fs=v2 and pred=v2, then get a Slack summary comparing them side-by-side:
+
+```bash
+python manage.py backtest --seasons 2024 2025 --all-optimizers
+```
+
+Run all 8 combinations of feature-store × predictor (v1/v2 each) × optimizer (v1/v2 only — v3 excluded to keep the sweep at 8):
+
+```bash
+python manage.py backtest --seasons 2024 2025 --all
+```
 
 ---
 

@@ -95,7 +95,6 @@ class Backtester:
         race_results = []
         rolling_scores: dict[int, list[tuple[float, Decimal]]] = {}
         current_lineup: Lineup | None = None
-        banked_transfers: int = 2  # start of season: 2 free credits
         splits = list(walk_forward_splits(events, min_train))
         total = len(splits)
         for n, (train_events, test_event) in enumerate(splits, start=1):
@@ -114,7 +113,7 @@ class Backtester:
             adjusted = _price_adjust_predictions(predictions, test_event, rolling_scores)
             constraints = {
                 "current_lineup": current_lineup,
-                "free_transfers": banked_transfers,
+                "free_transfers": 2,
                 "transfer_penalty": 10.0,
             }
             lineup_predicted, lineup_actual, optimal, new_lineup = _optimize_and_score(
@@ -122,8 +121,7 @@ class Backtester:
             )
             n_transfers = _count_transfers(current_lineup, new_lineup)
             if lineup_actual is not None:
-                lineup_actual -= max(0, n_transfers - banked_transfers) * 10.0
-            banked_transfers = min(2, banked_transfers - min(n_transfers, banked_transfers) + 1)
+                lineup_actual -= max(0, n_transfers - 2) * 10.0
             current_lineup = new_lineup
             race_result = RaceBacktestResult(
                 event_id=test_event.id,

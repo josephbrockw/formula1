@@ -23,7 +23,8 @@ WeatherSample                              │
                                            ▼
                              Optimizer
                              ├── GreedyOptimizer (v1)       PPM greedy only
-                             └── GreedyOptimizerV2 (v2)     PPM greedy + upgrade pass + transfer constraints ← current best
+                             ├── GreedyOptimizerV2 (v2)     PPM greedy + upgrade pass + transfer constraints ← current best greedy
+                             └── ILPOptimizer (v3)           Integer Linear Programming — provably optimal + transfer penalty in objective
                                            │
                                            ▼
                              Backtester  (walk-forward, price-aware)
@@ -32,7 +33,7 @@ WeatherSample                              │
                              Management Commands
                              ├── predict_race
                              ├── optimize_lineup
-                             └── backtest  (--feature-store v1/v2, --predictor v1/v2)
+                             └── backtest  (--feature-store v1/v2, --predictor v1/v2, --optimizer v1/v2/v3)
 ```
 
 The `predictions` app depends on `core` data but `core` knows nothing about predictions. Each layer talks to the next through a defined interface (Python Protocol), so implementations can be swapped independently.
@@ -521,7 +522,7 @@ The backtester maintains a `rolling_scores` dict tracking the last 3 `(actual_pt
 
 Real F1 Fantasy: 2 free transfers per race, extras cost 10 points each, 1 unused transfer banks to the next race (max 2 banked).
 
-**Backtester** now tracks `current_lineup` and `banked_transfers` across races, passes them as constraints to the optimizer, and deducts `max(0, n_transfers - free_transfers) * 10` from `lineup_actual_points`. The oracle optimal is still computed without constraints (it's the theoretical ceiling).
+**Backtester** now tracks `current_lineup` across races, passes it as a constraint to the optimizer, and deducts `max(0, n_transfers - 2) * 10` from `lineup_actual_points`. The oracle optimal is still computed without constraints (it's the theoretical ceiling).
 
 **Optimizer** (`_apply_transfer_constraints`) finds the diff between ideal and current lineup, pairs swaps by gain (drop worst, bring best), and applies: all free transfers + any paid ones where `gain > transfer_penalty`. Budget-checks and reverts the last paid change if over.
 
@@ -530,6 +531,71 @@ Real F1 Fantasy: 2 free transfers per race, extras cost 10 points each, 1 unused
 **Why constraints improved scores:** The 10-point penalty gate acts as a confidence filter — the optimizer only acts on large predicted differences, ignoring noise. Without constraints the optimizer was "overfitting" to noisy predictions by rebuilding from scratch each race. This is analogous to regularisation in ML: adding a penalty for complexity improves out-of-sample performance.
 
 Tests: `TestApplyTransferConstraints` in `predictions/tests/test_greedy_v2.py`
+
+---
+
+---
+
+## ILP Optimizer v3
+
+**Location:** `f1_data/predictions/optimizers/ilp_v3.py`
+
+**What was built:**
+
+- `predictions/optimizers/ilp_v3.py` — `ILPOptimizer` using `scipy.optimize.milp`
+- `predictions/tests/test_ilp_v3.py` — 16 tests (shape, budget, DRS, optimality, infeasibility, transfer penalty)
+
+**Why ILP over greedy:**
+
+Greedy optimizers pick one player at a time and never reconsider. They can get trapped: a driver with a great points/price ratio gets picked early, consuming budget that could have funded two cheaper drivers who together score more. ILP frames the entire problem as a single mathematical question and proves its answer cannot be beaten by any other valid lineup.
+
+**Variables (all binary except `e`):**
+
+| Variable | Meaning |
+|----------|---------|
+| `x[i]` | Driver i is in the lineup (binary) |
+| `y[j]` | Constructor j is in the lineup (binary) |
+| `z[i]` | Driver i receives the DRS boost (binary) |
+| `e` | Excess transfers beyond free allowance (continuous, ≥ 0) |
+
+**Objective (minimise):**
+```
+-(Σ pts[i]·x[i]  +  Σ pts[j]·y[j]  +  Σ pts[i]·z[i])  +  transfer_penalty · e
+```
+The DRS driver appears in both x and z so their points count twice. The penalty term `transfer_penalty · e` is the ILP equivalent of v2's post-hoc transfer constraint logic.
+
+**Constraints:**
+1. `Σ price[i]·x[i] + Σ price[j]·y[j] ≤ budget`
+2. `Σ x[i] = 5`
+3. `Σ y[j] = 2`
+4. `Σ z[i] = 1`
+5. `z[i] - x[i] ≤ 0` for each driver (DRS driver must be selected)
+6. `Σ_{new} x[i] + Σ_{new} y[j] - e ≤ free_transfers` (when current_lineup provided)
+
+**How the transfer penalty works in ILP:**
+
+Constraint (6) defines `e = max(0, total_new_players - free_transfers)` — the number of paid transfers. The solver minimises `penalty · e` as part of the objective. It never makes a transfer unless the predicted points gain exceeds the penalty. Players retained from the previous race have coefficient 0 in the transfer sum (keeping them is always free).
+
+This is preferable to greedy v2's post-hoc approach (find ideal lineup, then prune transfers). ILP considers the penalty *during* optimisation, meaning it can find lineups that are globally better when accounting for cost — e.g. a combination of two cheap retained drivers that beats one expensive new driver minus the penalty.
+
+**Why `predicted_points` in the returned Lineup does not include the penalty:**
+
+The backtester deducts transfer penalties from `lineup_actual_points` separately (based on real post-race counts). `predicted_points` is the raw lineup score used for comparison and reporting. Subtracting the penalty from it would cause double-counting.
+
+**Key decisions:**
+
+- **scipy.optimize.milp, not PuLP:** scipy is already a transitive dependency (via FastF1→matplotlib→numpy). No new packages needed. `milp` requires scipy ≥ 1.7.0 (2021).
+- **Slack variable `e` (not auxiliary binary variables):** Transfer count is a linear expression (sum of x[i] for new drivers). Introducing `e ≥ transfers - free` with `e ≥ 0` and minimising `penalty·e` handles `max(0, ...)` without branching. Clean and efficient.
+- **`e` is continuous, not integer:** Transfer counts are always integers since x/y are binary, so `e` settles at an integer anyway. Leaving it continuous avoids constraining the solver unnecessarily.
+- **`--all-optimizers` flag (not `--all`):** The existing `--all` sweeps 8 combos of feature-store × predictor × optimizer (v1/v2 only). `--all-optimizers` is a separate flag that fixes fs=v2, pred=v2 and sweeps v1/v2/v3 — isolating the optimizer dimension for a clean comparison.
+
+**Verification:**
+
+```bash
+python manage.py test predictions.tests.test_ilp_v3
+python manage.py backtest --seasons 2024 --optimizer v3 --min-train 10
+python manage.py backtest --seasons 2024 --all-optimizers   # compare v1/v2/v3 side-by-side
+```
 
 ---
 

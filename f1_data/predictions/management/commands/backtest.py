@@ -12,10 +12,12 @@ from predictions.features.v2_pandas import V2FeatureStore
 from predictions.models import BacktestRaceResult, BacktestRun
 from predictions.optimizers.greedy_v1 import GreedyOptimizer as GreedyOptimizerV1
 from predictions.optimizers.greedy_v2 import GreedyOptimizerV2
+from predictions.optimizers.ilp_v3 import ILPOptimizer
 from predictions.predictors.xgboost_v1 import XGBoostPredictor
 from predictions.predictors.xgboost_v2 import XGBoostPredictorV2
 
 _VERSIONS = ["v1", "v2"]
+_OPT_VERSIONS = ["v1", "v2", "v3"]
 
 
 class Command(BaseCommand):
@@ -55,15 +57,21 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--optimizer",
-            choices=_VERSIONS,
+            choices=_OPT_VERSIONS,
             default="v2",
-            help="Optimizer version (default: v2). Ignored when --all is set.",
+            help="Optimizer version (default: v2). Ignored when --all or --all-optimizers is set.",
         )
         parser.add_argument(
             "--all",
             action="store_true",
             default=False,
-            help="Run all 8 combinations of feature-store/predictor/optimizer and send a Slack summary.",
+            help="Run all 8 combinations of feature-store/predictor/optimizer (v1/v2 only) and send a Slack summary.",
+        )
+        parser.add_argument(
+            "--all-optimizers",
+            action="store_true",
+            default=False,
+            help="Run v1/v2/v3 optimizers with fixed feature-store=v2, predictor=v2 and send a Slack summary.",
         )
 
     def handle(self, *args, **options) -> None:
@@ -91,6 +99,15 @@ class Command(BaseCommand):
                 if run:
                     runs.append(run)
             _send_all_done_notification(runs, seasons)
+        elif options["all_optimizers"]:
+            self.stdout.write(f"Running optimizer comparison (fs=v2, pred=v2, opt=v1/v2/v3) — seasons {seasons}")
+            runs = []
+            for opt in _OPT_VERSIONS:
+                self.stdout.write(f"\n── fs=v2 pred=v2 opt={opt} ──")
+                run = self._run_single("v2", "v2", opt, events, seasons, min_train, budget)
+                if run:
+                    runs.append(run)
+            _send_all_done_notification(runs, seasons)
         else:
             self._run_single(
                 options["feature_store"], options["predictor"], options["optimizer"],
@@ -109,7 +126,12 @@ class Command(BaseCommand):
     ) -> BacktestRun | None:
         feature_store = V2FeatureStore() if fs_version == "v2" else V1FeatureStore()
         predictor = XGBoostPredictorV2() if pred_version == "v2" else XGBoostPredictor()
-        optimizer = GreedyOptimizerV2() if opt_version == "v2" else GreedyOptimizerV1()
+        if opt_version == "v3":
+            optimizer = ILPOptimizer()
+        elif opt_version == "v2":
+            optimizer = GreedyOptimizerV2()
+        else:
+            optimizer = GreedyOptimizerV1()
 
         run = BacktestRun.objects.create(
             feature_store_version=fs_version,
