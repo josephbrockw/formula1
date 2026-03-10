@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 ## Project
-I want to learn about ML and AI through this project. So it's very important that code changes are done in very small pieces with explanations of what the changes do and what decisions were made and why.
+I want to learn about ML and AI through this project. So it's **VERY** important that code changes are done in very small pieces with strong explanations of what the changes do and what decisions were made and why.
 Please pause to teach me what we are doing throughout the process. 
 
 F1 Fantasy data collection system. Django + SQLite + FastF1. Collects historical and current F1 session data (laps, results, weather) for a downstream ML/RL fantasy optimization system.
@@ -9,7 +9,6 @@ The project is in f1_data/ and chrome_extension/. f1_analytics/ is legacy abando
 
 ## Key Files
 
-- `PLAN.md` — Full data collection implementation plan with model specs, architecture, and build order. This has already beed completed.
 - `ML_PIPELINE_PLAN.md` - The plan to execute the ML portion of this project.
 - `ML_PROCESS.md` - Living log of what has been implemented in the ML pipeline, decisions made, and current state. **Update this file whenever a step is completed or a significant decision is made.**
 - `USAGE.md` - Living doc of how to use the ml to produce real insights. **Update this file whenever a step has changed, been added, or there is a new feature/utility.**
