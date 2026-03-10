@@ -88,7 +88,7 @@ LINEUP_BUDGET: float = 100.0
 # Minimum predicted point gain required for the ILP optimizer to make a transfer.
 # Set to current MAE so only statistically meaningful improvements trigger changes.
 # Tune this down as prediction accuracy improves.
-ILP_TRANSFER_THRESHOLD: float = 8.5
+ILP_TRANSFER_THRESHOLD: float = 10
 
 # Slack
 SLACK_WEBHOOK_URL = os.environ.get('SLACK_WEBHOOK_URL', '')

@@ -97,8 +97,14 @@ Three-layer pipeline: **Feature Store** (builds input vectors) → **Predictor**
 **1. Fix Run 9 (all-v2 crash)**
 Debug why FS v2 + Pred v2 + Opt v2 only completes 26/43 races. Likely a NaN propagation issue or feature mismatch. This is blocking your best possible configuration from being evaluated.
 
-**2. Replace Greedy with Integer Linear Programming (ILP)**
+#### 2. Replace Greedy with Integer Linear Programming (ILP)
 Use PuLP or `scipy.optimize.milp`. Formulate as: maximize Σ(predicted_pts × selected) subject to Σ(price × selected) ≤ budget, Σ(driver_selected) = 5, Σ(constructor_selected) = 2. This finds the provably optimal lineup. Implementation: ~50 lines of code. Expected impact: the greedy→ILP gap is typically 5-15% in knapsack problems.
+
+##### Results
+Implemented but didn't perform well because noisy predictions led to suboptimal lineups. 
+Options:
+- Improve prediction error
+- Reformulate the ILP objective to explicitly penalize uncertainty — something like maximize Σ(predicted_pts - λ × confidence_width) × selected, which is the risk-aware approach from your v2 predictor bounds. That would make ILP conservative where predictions are uncertain and aggressive only where the model is confident.
 
 **3. XGBoost Hyperparameter Tuning**
 Run a grid or random search over: `n_estimators` [20, 50, 100], `max_depth` [2, 3, 4], `learning_rate` [0.05, 0.1, 0.2], `min_child_weight` [3, 5, 10], `subsample` [0.7, 0.8], `colsample_bytree` [0.7, 0.8], `reg_lambda` [1, 5, 10]. Use the walk-forward structure for evaluation (average MAE across all test folds). With 100-800 rows, shallow trees (depth 2-3) and fewer estimators (20-50) with heavy regularization will almost certainly outperform the defaults.
