@@ -175,7 +175,7 @@ The import command detects file type by filename:
 Run a walk-forward backtest over historical seasons to check how the model would have performed:
 
 ```bash
-python manage.py backtest --seasons 2023 2024 2025 --min-train 5
+python manage.py backtest --seasons 2024 2025 --min-train 5
 ```
 
 Options:
