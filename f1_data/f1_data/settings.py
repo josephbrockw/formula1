@@ -90,5 +90,14 @@ LINEUP_BUDGET: float = 100.0
 # Tune this down as prediction accuracy improves.
 ILP_TRANSFER_THRESHOLD: float = 10
 
+# ML pipeline versions to use for next_race and score_lineup.
+# Update these when a new version outperforms the current one in backtesting.
+#   ML_FEATURE_STORE: "v1" | "v2"
+#   ML_PREDICTOR:     "v1" | "v2"
+#   ML_OPTIMIZER:     "v1" | "v2" | "v3"
+ML_FEATURE_STORE: str = "v2"
+ML_PREDICTOR: str = "v2"
+ML_OPTIMIZER: str = "v2"
+
 # Slack
 SLACK_WEBHOOK_URL = os.environ.get('SLACK_WEBHOOK_URL', '')

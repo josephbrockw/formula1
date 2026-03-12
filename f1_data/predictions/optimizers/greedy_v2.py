@@ -182,16 +182,17 @@ def _apply_transfer_constraints(
             final_constructors.remove(old_id)
             final_constructors.append(new_id)
 
-    # If over budget, revert the last (lowest-gain) paid change
+    # If over budget, revert lowest-gain transfers one at a time until back within budget
     cost = sum(d_price.get(d, 0.0) for d in final_drivers) + sum(c_price.get(c, 0.0) for c in final_constructors)
-    if cost > budget and len(selected) > free_transfers:
-        old_id, new_id, _, is_driver = selected[-1]
+    while cost > budget and selected:
+        old_id, new_id, _, is_driver = selected.pop()
         if is_driver:
             final_drivers.remove(new_id)
             final_drivers.append(old_id)
         else:
             final_constructors.remove(new_id)
             final_constructors.append(old_id)
+        cost = sum(d_price.get(d, 0.0) for d in final_drivers) + sum(c_price.get(c, 0.0) for c in final_constructors)
 
     return _build_lineup_from_ids(final_drivers, final_constructors, drivers_df, constructors_df)
 

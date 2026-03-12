@@ -1,0 +1,81 @@
+Driver Name,Team,Driver Value,Race,Event Type,Scoring Item,Frequency,Position,Points,Race Total,Season Total
+Max Verstappen,Red Bull Racing,$28M,Australia,race,Driver Of The Day,,,10,50,50
+Max Verstappen,Red Bull Racing,$28M,Australia,race,Race Position,,6,8,50,50
+Max Verstappen,Red Bull Racing,$28M,Australia,race,QF Not Classified,,,-5,50,50
+Max Verstappen,Red Bull Racing,$28M,Australia,race,Race Positions Gained,14,,14,50,50
+Max Verstappen,Red Bull Racing,$28M,Australia,race,Race Fastest Lap,,,10,50,50
+Max Verstappen,Red Bull Racing,$28M,Australia,race,Race Overtake Bonus,13,,13,50,50
+George Russell,Mercedes,$27.7M,Australia,race,Race Position,,1,25,39,39
+George Russell,Mercedes,$27.7M,Australia,qualifying,Qualifying Position,,1,10,39,39
+George Russell,Mercedes,$27.7M,Australia,race,Race Overtake Bonus,4,,4,39,39
+Kimi Antonelli,Mercedes,$23.5M,Australia,race,Race Position,,2,18,32,32
+Kimi Antonelli,Mercedes,$23.5M,Australia,qualifying,Qualifying Position,,2,9,32,32
+Kimi Antonelli,Mercedes,$23.5M,Australia,race,Race Overtake Bonus,5,,5,32,32
+Charles Leclerc,Ferrari,$23.1M,Australia,race,Race Position,,3,15,29,29
+Charles Leclerc,Ferrari,$23.1M,Australia,qualifying,Qualifying Position,,4,7,29,29
+Charles Leclerc,Ferrari,$23.1M,Australia,race,Race Positions Gained,1,,1,29,29
+Charles Leclerc,Ferrari,$23.1M,Australia,race,Race Overtake Bonus,6,,6,29,29
+Lewis Hamilton,Ferrari,$22.6M,Australia,race,Race Position,,4,12,25,25
+Lewis Hamilton,Ferrari,$22.6M,Australia,qualifying,Qualifying Position,,7,4,25,25
+Lewis Hamilton,Ferrari,$22.6M,Australia,race,Race Positions Gained,3,,3,25,25
+Lewis Hamilton,Ferrari,$22.6M,Australia,race,Race Overtake Bonus,6,,6,25,25
+Lando Norris,McLaren,$27.1M,Australia,race,Race Position,,5,10,21,21
+Lando Norris,McLaren,$27.1M,Australia,qualifying,Qualifying Position,,6,5,21,21
+Lando Norris,McLaren,$27.1M,Australia,race,Race Positions Gained,1,,1,21,21
+Lando Norris,McLaren,$27.1M,Australia,race,Race Overtake Bonus,5,,5,21,21
+Oliver Bearman,Haas F1 Team,$8M,Australia,race,Race Position,,7,6,20,20
+Oliver Bearman,Haas F1 Team,$8M,Australia,qualifying,Qualifying Position,,12,0,20,20
+Oliver Bearman,Haas F1 Team,$8M,Australia,race,Race Positions Gained,5,,5,20,20
+Oliver Bearman,Haas F1 Team,$8M,Australia,race,Race Overtake Bonus,9,,9,20,20
+Arvid Lindblad,Racing Bulls,$6.8M,Australia,race,Race Position,,8,4,15,15
+Arvid Lindblad,Racing Bulls,$6.8M,Australia,qualifying,Qualifying Position,,9,2,15,15
+Arvid Lindblad,Racing Bulls,$6.8M,Australia,race,Race Positions Gained,1,,1,15,15
+Arvid Lindblad,Racing Bulls,$6.8M,Australia,race,Race Overtake Bonus,8,,8,15,15
+Gabriel Bortoleto,Audi,$7M,Australia,race,Race Position,,9,2,13,13
+Gabriel Bortoleto,Audi,$7M,Australia,qualifying,Qualifying Position,,10,1,13,13
+Gabriel Bortoleto,Audi,$7M,Australia,race,Race Positions Gained,1,,1,13,13
+Gabriel Bortoleto,Audi,$7M,Australia,race,Race Overtake Bonus,9,,9,13,13
+Pierre Gasly,Alpine,$12.2M,Australia,race,Race Position,,10,1,11,11
+Pierre Gasly,Alpine,$12.2M,Australia,qualifying,Qualifying Position,,14,0,11,11
+Pierre Gasly,Alpine,$12.2M,Australia,race,Race Positions Gained,4,,4,11,11
+Pierre Gasly,Alpine,$12.2M,Australia,race,Race Overtake Bonus,6,,6,11,11
+Esteban Ocon,Haas F1 Team,$7.9M,Australia,race,Race Position,,11,0,9,9
+Esteban Ocon,Haas F1 Team,$7.9M,Australia,qualifying,Qualifying Position,,13,0,9,9
+Esteban Ocon,Haas F1 Team,$7.9M,Australia,race,Race Positions Gained,2,,2,9,9
+Esteban Ocon,Haas F1 Team,$7.9M,Australia,race,Race Overtake Bonus,7,,7,9,9
+Carlos Sainz,Williams,$11.6M,Australia,race,Race Position,,15,0,9,9
+Carlos Sainz,Williams,$11.6M,Australia,race,QF Not Classified,,,-5,9,9
+Carlos Sainz,Williams,$11.6M,Australia,race,Race Positions Gained,6,,6,9,9
+Carlos Sainz,Williams,$11.6M,Australia,race,Race Overtake Bonus,8,,8,9,9
+Alexander Albon,Williams,$11.4M,Australia,race,Race Position,,12,0,8,8
+Alexander Albon,Williams,$11.4M,Australia,qualifying,Qualifying Position,,15,0,8,8
+Alexander Albon,Williams,$11.4M,Australia,race,Race Positions Gained,3,,3,8,8
+Alexander Albon,Williams,$11.4M,Australia,race,Race Overtake Bonus,5,,5,8,8
+Franco Colapinto,Alpine,$6.4M,Australia,race,Race Position,,14,0,6,6
+Franco Colapinto,Alpine,$6.4M,Australia,qualifying,Qualifying Position,,16,0,6,6
+Franco Colapinto,Alpine,$6.4M,Australia,race,Race Positions Gained,2,,2,6,6
+Franco Colapinto,Alpine,$6.4M,Australia,race,Race Overtake Bonus,4,,4,6,6
+Liam Lawson,Racing Bulls,$6.3M,Australia,race,Race Position,,13,0,5,5
+Liam Lawson,Racing Bulls,$6.3M,Australia,qualifying,Qualifying Position,,8,3,5,5
+Liam Lawson,Racing Bulls,$6.3M,Australia,race,Race Positions Lost,5,,-5,5,5
+Liam Lawson,Racing Bulls,$6.3M,Australia,race,Race Overtake Bonus,7,,7,5,5
+Sergio Perez,Cadillac,$5.8M,Australia,race,Race Position,,16,0,4,4
+Sergio Perez,Cadillac,$5.8M,Australia,qualifying,Qualifying Position,,18,0,4,4
+Sergio Perez,Cadillac,$5.8M,Australia,race,Race Positions Gained,2,,2,4,4
+Sergio Perez,Cadillac,$5.8M,Australia,race,Race Overtake Bonus,2,,2,4,4
+Isack Hadjar,Red Bull Racing,$14.5M,Australia,qualifying,Qualifying Position,,3,8,-8,-8
+Isack Hadjar,Red Bull Racing,$14.5M,Australia,race,Race Not Classified,,,-20,-8,-8
+Isack Hadjar,Red Bull Racing,$14.5M,Australia,race,Race Overtake Bonus,4,,4,-8,-8
+Fernando Alonso,Aston Martin,$9.4M,Australia,qualifying,Qualifying Position,,17,0,-14,-14
+Fernando Alonso,Aston Martin,$9.4M,Australia,race,Race Not Classified,,,-20,-14,-14
+Fernando Alonso,Aston Martin,$9.4M,Australia,race,Race Overtake Bonus,6,,6,-14,-14
+Oscar Piastri,McLaren,$25.2M,Australia,qualifying,Qualifying Position,,5,6,-14,-14
+Oscar Piastri,McLaren,$25.2M,Australia,race,Race Not Classified,,,-20,-14,-14
+Valtteri Bottas,Cadillac,$5.3M,Australia,qualifying,Qualifying Position,,19,0,-16,-16
+Valtteri Bottas,Cadillac,$5.3M,Australia,race,Race Not Classified,,,-20,-16,-16
+Valtteri Bottas,Cadillac,$5.3M,Australia,race,Race Overtake Bonus,4,,4,-16,-16
+Nico Hulkenberg,Audi,$6.2M,Australia,qualifying,Qualifying Position,,11,0,-20,-20
+Nico Hulkenberg,Audi,$6.2M,Australia,race,Race Not Classified,,,-20,-20,-20
+Lance Stroll,Aston Martin,$7.4M,Australia,race,Race Not Classified,,,-20,-23,-23
+Lance Stroll,Aston Martin,$7.4M,Australia,race,QF Not Classified,,,-5,-23,-23
+Lance Stroll,Aston Martin,$7.4M,Australia,race,Race Overtake Bonus,2,,2,-23,-23

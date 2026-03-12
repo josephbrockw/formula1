@@ -132,7 +132,10 @@ Run these steps in order.
 
 ```bash
 # 1. Pull FastF1 results (lap data, session results, weather)
-python manage.py collect_data --year YYYY
+python manage.py collect_data --year YYYY --round N --retry-failed
+# --retry-failed is needed if a previous collection attempt marked sessions as failed
+# (this happens when collect_data was run before race data was available).
+# --round N limits retries to the just-completed round, avoiding pointless retries on future rounds.
 
 # 2. Import Chrome extension CSVs (actual fantasy scores + prices)
 #    Export from the Chrome extension and drop files in data/YYYY/

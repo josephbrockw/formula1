@@ -6,6 +6,9 @@ from django.core.management.base import BaseCommand, CommandError
 from decimal import Decimal
 
 from core.models import Driver, Event, Team
+from django.conf import settings
+
+from predictions.features.v1_pandas import V1FeatureStore
 from predictions.features.v2_pandas import V2FeatureStore
 from predictions.models import (
     FantasyConstructorPrice,
@@ -14,9 +17,12 @@ from predictions.models import (
     MyLineup,
 )
 from predictions.optimizers.base import Lineup
+from predictions.optimizers.greedy_v1 import GreedyOptimizer
 from predictions.optimizers.greedy_v2 import GreedyOptimizerV2
-from predictions.predictors.xgboost_v1 import build_training_dataset
+from predictions.optimizers.ilp_v3 import ILPOptimizer
+from predictions.predictors.xgboost_v1 import XGBoostPredictor, build_training_dataset
 from predictions.predictors.xgboost_v2 import XGBoostPredictorV2
+
 from predictions.scoring import (
     compute_oracle,
     load_actual_constructor_pts,
@@ -53,11 +59,14 @@ class Command(BaseCommand):
 
         _auto_score_previous(event, self.stdout)
 
-        self.stdout.write(f"\nNext Race: Round {round_number} — {event.event_name} ({event.event_date})")
-        self.stdout.write(f"Training on {len(train_events)} past events\n")
+        fs_version = getattr(settings, "ML_FEATURE_STORE", "v2")
+        pred_version = getattr(settings, "ML_PREDICTOR", "v2")
+        opt_version = getattr(settings, "ML_OPTIMIZER", "v2")
+        feature_store = {"v1": V1FeatureStore, "v2": V2FeatureStore}[fs_version]()
+        predictor = {"v1": XGBoostPredictor, "v2": XGBoostPredictorV2}[pred_version]()
 
-        feature_store = V2FeatureStore()
-        predictor = XGBoostPredictorV2()
+        self.stdout.write(f"\nNext Race: Round {round_number} — {event.event_name} ({event.event_date})")
+        self.stdout.write(f"Training on {len(train_events)} past events  [fs={fs_version} pred={pred_version} opt={opt_version}]\n")
 
         X, y = build_training_dataset(train_events, feature_store)
         if X.empty:
@@ -129,7 +138,7 @@ class Command(BaseCommand):
             "free_transfers": banked_transfers,
             "transfer_penalty": 10.0,
         }
-        lineup = GreedyOptimizerV2().optimize_single_race(
+        lineup = {"v1": GreedyOptimizer, "v2": GreedyOptimizerV2, "v3": ILPOptimizer}[opt_version]().optimize_single_race(
             driver_preds_df, constructor_preds_df, budget, constraints
         )
 
