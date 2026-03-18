@@ -43,6 +43,7 @@ class RaceBacktestResult:
     lineup_actual_points: float | None
     optimal_actual_points: float | None
     n_transfers: int = 0
+    lineup: "Lineup | None" = None
 
 
 @dataclass
@@ -95,9 +96,13 @@ class Backtester:
         race_results = []
         rolling_scores: dict[int, list[tuple[float, Decimal]]] = {}
         current_lineup: Lineup | None = None
+        current_season_id: int | None = None
         splits = list(walk_forward_splits(events, min_train))
         total = len(splits)
         for n, (train_events, test_event) in enumerate(splits, start=1):
+            if test_event.season_id != current_season_id:
+                current_lineup = None
+                current_season_id = test_event.season_id
             X, y = build_training_dataset(train_events, feature_store)
             if X.empty:
                 continue
@@ -122,7 +127,8 @@ class Backtester:
             n_transfers = _count_transfers(current_lineup, new_lineup)
             if lineup_actual is not None:
                 lineup_actual -= max(0, n_transfers - 2) * 10.0
-            current_lineup = new_lineup
+            if new_lineup is not None:
+                current_lineup = new_lineup
             race_result = RaceBacktestResult(
                 event_id=test_event.id,
                 event_name=test_event.event_name,
@@ -133,6 +139,7 @@ class Backtester:
                 lineup_actual_points=lineup_actual,
                 optimal_actual_points=optimal,
                 n_transfers=n_transfers,
+                lineup=new_lineup,
             )
             race_results.append(race_result)
             if on_race_done:

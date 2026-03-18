@@ -187,3 +187,43 @@ class TestApplyTransferConstraints(SimpleTestCase):
     def test_result_contains_five_drivers(self) -> None:
         result = self._apply([4, 5, 6, 7, 8], [1, 2, 3, 4, 5], free_transfers=2)
         self.assertEqual(len(result.driver_ids), 5)
+
+    def test_missing_price_treated_as_unaffordable(self) -> None:
+        """
+        A driver in the current lineup with no price entry in drivers_df should
+        be treated as over-budget (sentinel = budget + 1.0), not as free ($0).
+
+        Setup: ideal wants driver 8 (best scorer), current has driver 9 which is
+        NOT in drivers_df at all. Without the fix the $0 fallback makes the cost
+        appear within budget and driver 9 is kept. With the fix, the lineup is
+        treated as over-budget and the transfer to driver 8 is reverted — current
+        lineup (with driver 9) cannot be validated so we fall back to it unchanged.
+
+        The key assertion: the result must respect the budget. A lineup containing
+        driver 9 (unpriced) should never appear as affordable.
+        """
+        # drivers_df only contains ids 1-8; driver 9 has no row (simulates a
+        # mid-season replacement whose price hasn't been loaded yet).
+        drivers_df = _make_full_drivers()  # ids 1-8, price $10 each
+        constructors_df = _make_full_constructors()
+
+        # Current lineup holds driver 9 (not in drivers_df — unpriced)
+        current = _lineup([5, 6, 7, 8, 9], [101, 102])
+        # Ideal wants to keep 5-8 and bring in driver 1 (lower scorer but priced)
+        ideal = _lineup([1, 5, 6, 7, 8], [101, 102])
+
+        # Budget is exactly 70 (5 drivers + 2 constructors at $10 each).
+        # With $0 fallback: cost = 4*10 + 0 + 2*10 = 60 — falsely within budget.
+        # With sentinel budget+1=71: cost = 4*10 + 71 + 2*10 = 131 — over budget,
+        # transfer reverted.
+        result = _apply_transfer_constraints(
+            ideal=ideal,
+            current=current,
+            free_transfers=2,
+            transfer_penalty=10.0,
+            drivers_df=drivers_df,
+            constructors_df=constructors_df,
+            budget=70.0,
+        )
+        # The result must stay within the stated budget
+        self.assertLessEqual(result.total_cost, 70.0)

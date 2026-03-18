@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import itertools
 
+from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from core.models import Event
+from core.models import Driver, Event, Team
 from core.tasks.notifier import send_slack_notification
 from predictions.evaluation.backtester import Backtester, RaceBacktestResult
 from predictions.features.v1_pandas import V1FeatureStore
 from predictions.features.v2_pandas import V2FeatureStore
+from predictions.features.v3_pandas import V3FeatureStore
 from predictions.models import BacktestRaceResult, BacktestRun
 from predictions.optimizers.greedy_v1 import GreedyOptimizer as GreedyOptimizerV1
 from predictions.optimizers.greedy_v2 import GreedyOptimizerV2
@@ -16,8 +18,8 @@ from predictions.optimizers.ilp_v3 import ILPOptimizer
 from predictions.predictors.xgboost_v1 import XGBoostPredictor
 from predictions.predictors.xgboost_v2 import XGBoostPredictorV2
 
-_VERSIONS = ["v1", "v2"]
-_OPT_VERSIONS = ["v1", "v2", "v3"]
+_VERSIONS = settings.ML_FEATURE_STORE_VERSIONS
+_OPT_VERSIONS = settings.ML_OPTIMIZER_VERSIONS
 
 
 class Command(BaseCommand):
@@ -46,14 +48,16 @@ class Command(BaseCommand):
         parser.add_argument(
             "--feature-store",
             choices=_VERSIONS,
-            default="v2",
-            help="Feature store version (default: v2). Ignored when --all is set.",
+            default=["v2"],
+            nargs="+",
+            help="Feature store version(s) to run (default: v2). Pass multiple to sweep, e.g. --feature-store v2 v3.",
         )
         parser.add_argument(
             "--predictor",
-            choices=_VERSIONS,
-            default="v2",
-            help="Predictor version (default: v2). Ignored when --all is set.",
+            choices=settings.ML_PREDICTOR_VERSIONS,
+            default=["v2"],
+            nargs="+",
+            help="Predictor version(s) to run (default: v2). Pass multiple to sweep.",
         )
         parser.add_argument(
             "--optimizer",
@@ -73,6 +77,12 @@ class Command(BaseCommand):
             default=False,
             help="Run v1/v2/v3 optimizers with fixed feature-store=v2, predictor=v2 and send a Slack summary.",
         )
+        parser.add_argument(
+            "--verbose",
+            action="store_true",
+            default=False,
+            help="Print each race's selected lineup and total cost (useful for diagnosing budget bugs).",
+        )
 
     def handle(self, *args, **options) -> None:
         seasons = options["seasons"]
@@ -89,13 +99,18 @@ class Command(BaseCommand):
                 f"Only {len(events)} events for seasons {seasons} — need at least {min_train + 1}."
             )
 
+        fs_versions = options["feature_store"]
+        pred_versions = options["predictor"]
+        opt_version = options["optimizer"]
+        verbose = options["verbose"]
+
         if options["all"]:
-            combos = list(itertools.product(_VERSIONS, _VERSIONS, _VERSIONS))
+            combos = list(itertools.product(_VERSIONS, settings.ML_PREDICTOR_VERSIONS, _OPT_VERSIONS))
             self.stdout.write(f"Running all {len(combos)} combinations — seasons {seasons}")
             runs = []
             for fs, pred, opt in combos:
                 self.stdout.write(f"\n── fs={fs} pred={pred} opt={opt} ──")
-                run = self._run_single(fs, pred, opt, events, seasons, min_train, budget)
+                run = self._run_single(fs, pred, opt, events, seasons, min_train, budget, verbose)
                 if run:
                     runs.append(run)
             _send_all_done_notification(runs, seasons)
@@ -104,14 +119,24 @@ class Command(BaseCommand):
             runs = []
             for opt in _OPT_VERSIONS:
                 self.stdout.write(f"\n── fs=v2 pred=v2 opt={opt} ──")
-                run = self._run_single("v2", "v2", opt, events, seasons, min_train, budget)
+                run = self._run_single("v2", "v2", opt, events, seasons, min_train, budget, verbose)
+                if run:
+                    runs.append(run)
+            _send_all_done_notification(runs, seasons)
+        elif len(fs_versions) > 1 or len(pred_versions) > 1:
+            combos = list(itertools.product(fs_versions, pred_versions, [opt_version]))
+            self.stdout.write(f"Running {len(combos)} combination(s) — seasons {seasons}")
+            runs = []
+            for fs, pred, opt in combos:
+                self.stdout.write(f"\n── fs={fs} pred={pred} opt={opt} ──")
+                run = self._run_single(fs, pred, opt, events, seasons, min_train, budget, verbose)
                 if run:
                     runs.append(run)
             _send_all_done_notification(runs, seasons)
         else:
             self._run_single(
-                options["feature_store"], options["predictor"], options["optimizer"],
-                events, seasons, min_train, budget,
+                fs_versions[0], pred_versions[0], opt_version,
+                events, seasons, min_train, budget, verbose,
             )
 
     def _run_single(
@@ -123,8 +148,14 @@ class Command(BaseCommand):
         seasons: list[int],
         min_train: int,
         budget: float,
+        verbose: bool = False,
     ) -> BacktestRun | None:
-        feature_store = V2FeatureStore() if fs_version == "v2" else V1FeatureStore()
+        if fs_version == "v3":
+            feature_store = V3FeatureStore()
+        elif fs_version == "v2":
+            feature_store = V2FeatureStore()
+        else:
+            feature_store = V1FeatureStore()
         predictor = XGBoostPredictorV2() if pred_version == "v2" else XGBoostPredictor()
         if opt_version == "v3":
             optimizer = ILPOptimizer()
@@ -145,6 +176,13 @@ class Command(BaseCommand):
         self.stdout.write(
             f"Backtest run #{run.pk} — {len(events)} events, {n_splits} predictions, min_train={min_train}"
         )
+
+        # Build id→code/name lookups used by verbose lineup printing
+        driver_code_map: dict[int, str] = {}
+        team_name_map: dict[int, str] = {}
+        if verbose:
+            driver_code_map = dict(Driver.objects.filter(season__year__in=seasons).values_list("id", "code"))
+            team_name_map = dict(Team.objects.filter(season__year__in=seasons).values_list("id", "name"))
 
         header = (
             f"{'':>10}  {'Event':<35}  {'Train':>5}  {'MAE Pos':>7}  {'MAE Pts':>7}"
@@ -171,6 +209,12 @@ class Command(BaseCommand):
                 f"[{n:>3}/{total}]  {r.event_name:<35}  {r.n_train:>5}  {r.mae_position:>7.2f}"
                 f"  {r.mae_fantasy_points:>7.2f}  {r.n_transfers:>6}  {lineup_str:>7}  {optimal_str:>7}"
             )
+            if verbose and r.lineup is not None:
+                drivers_str = " ".join(driver_code_map.get(d, f"#{d}") for d in r.lineup.driver_ids)
+                teams_str = " ".join(team_name_map.get(c, f"#{c}") for c in r.lineup.constructor_ids)
+                self.stdout.write(
+                    f"           Lineup: {drivers_str} | {teams_str}  (${r.lineup.total_cost:.1f}M / ${budget:.1f}M)"
+                )
 
         result = Backtester().run(
             events=events,

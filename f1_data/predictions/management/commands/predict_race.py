@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
 from core.models import Driver, Event
 from predictions.features.v1_pandas import V1FeatureStore
+from predictions.features.v2_pandas import V2FeatureStore
+from predictions.features.v3_pandas import V3FeatureStore
 from predictions.models import RacePrediction
 from predictions.predictors.xgboost_v1 import XGBoostPredictor, build_training_dataset
 
@@ -20,6 +23,12 @@ class Command(BaseCommand):
             "--model-version",
             default=_DEFAULT_MODEL_VERSION,
             help=f"Model version tag (default: {_DEFAULT_MODEL_VERSION})",
+        )
+        parser.add_argument(
+            "--feature-store",
+            choices=settings.ML_FEATURE_STORE_VERSIONS,
+            default=settings.ML_FEATURE_STORE,
+            help=f"Feature store version (default: {settings.ML_FEATURE_STORE})",
         )
 
     def handle(self, *args, **options) -> None:
@@ -41,7 +50,13 @@ class Command(BaseCommand):
         )
         self.stdout.write(f"Predicting: {event} — training on {len(train_events)} past events")
 
-        feature_store = V1FeatureStore()
+        fs_version = options["feature_store"]
+        if fs_version == "v3":
+            feature_store = V3FeatureStore()
+        elif fs_version == "v2":
+            feature_store = V2FeatureStore()
+        else:
+            feature_store = V1FeatureStore()
         predictor = XGBoostPredictor()
 
         X, y = build_training_dataset(train_events, feature_store)

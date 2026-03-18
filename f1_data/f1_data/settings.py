@@ -92,12 +92,18 @@ ILP_TRANSFER_THRESHOLD: float = 10
 
 # ML pipeline versions to use for next_race and score_lineup.
 # Update these when a new version outperforms the current one in backtesting.
-#   ML_FEATURE_STORE: "v1" | "v2"
+#   ML_FEATURE_STORE: "v1" | "v2" | "v3"
 #   ML_PREDICTOR:     "v1" | "v2"
 #   ML_OPTIMIZER:     "v1" | "v2" | "v3"
 ML_FEATURE_STORE: str = "v2"
 ML_PREDICTOR: str = "v2"
 ML_OPTIMIZER: str = "v2"
+
+# Valid versions for each component (update when adding new versions).
+# Management commands import from here so choices stay in one place.
+ML_FEATURE_STORE_VERSIONS: list[str] = ["v1", "v2", "v3"]
+ML_PREDICTOR_VERSIONS: list[str] = ["v1", "v2"]
+ML_OPTIMIZER_VERSIONS: list[str] = ["v1", "v2", "v3"]
 
 # Slack
 SLACK_WEBHOOK_URL = os.environ.get('SLACK_WEBHOOK_URL', '')

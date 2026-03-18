@@ -182,8 +182,11 @@ def _apply_transfer_constraints(
             final_constructors.remove(old_id)
             final_constructors.append(new_id)
 
-    # If over budget, revert lowest-gain transfers one at a time until back within budget
-    cost = sum(d_price.get(d, 0.0) for d in final_drivers) + sum(c_price.get(c, 0.0) for c in final_constructors)
+    # If over budget, revert lowest-gain transfers one at a time until back within budget.
+    # Sentinel budget+1.0: any driver with no current price (retired, data gap) is treated as
+    # unaffordable, forcing them out rather than silently treating them as free ($0).
+    _missing = budget + 1.0
+    cost = sum(d_price.get(d, _missing) for d in final_drivers) + sum(c_price.get(c, _missing) for c in final_constructors)
     while cost > budget and selected:
         old_id, new_id, _, is_driver = selected.pop()
         if is_driver:
@@ -192,7 +195,7 @@ def _apply_transfer_constraints(
         else:
             final_constructors.remove(new_id)
             final_constructors.append(old_id)
-        cost = sum(d_price.get(d, 0.0) for d in final_drivers) + sum(c_price.get(c, 0.0) for c in final_constructors)
+        cost = sum(d_price.get(d, _missing) for d in final_drivers) + sum(c_price.get(c, _missing) for c in final_constructors)
 
     return _build_lineup_from_ids(final_drivers, final_constructors, drivers_df, constructors_df)
 

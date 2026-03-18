@@ -324,3 +324,45 @@ class TestBacktesterRun(TestCase):
         )
         race = result.race_results[0]
         self.assertGreaterEqual(race.optimal_actual_points, race.lineup_actual_points)
+
+    def test_lineup_preserved_when_event_has_no_price_data(self) -> None:
+        """
+        When an event has no price data, _optimize_and_score returns (None,...,None).
+        current_lineup must be preserved (not reset) so the subsequent race still
+        has a valid carry-over lineup for transfer constraint calculations.
+
+        Sequence: event1 (priced) → event2 (no prices) → event3 (priced).
+        The lineup built at event1 should be the carry-over into event3.
+        Without the fix current_lineup becomes None after event2, and event3
+        n_transfers would be 0 (no prior lineup to diff against) even if the
+        lineup changed.
+        """
+        from predictions.evaluation.backtester import Backtester
+        from predictions.features.v1_pandas import V1FeatureStore
+        from predictions.predictors.xgboost_v1 import XGBoostPredictor
+
+        drivers, teams = self._make_world()
+        season = drivers[0].season
+        event1 = self._make_full_event(season, 1, drivers, teams, with_prices=True)
+        event2 = self._make_full_event(season, 2, drivers, teams, with_prices=False)  # gap race
+        event3 = self._make_full_event(season, 3, drivers, teams, with_prices=True)
+
+        lineups_seen: list = []
+
+        def capture(r: RaceBacktestResult, n: int, total: int) -> None:
+            lineups_seen.append(r.lineup)
+
+        Backtester().run(
+            events=[event1, event2, event3],
+            feature_store=V1FeatureStore(),
+            predictor=XGBoostPredictor(),
+            optimizer=GreedyOptimizerV2(),
+            min_train=1,
+            on_race_done=capture,
+        )
+        # event2 has no price data so its lineup slot is None — that's correct.
+        # event3 must still produce a lineup (not None), because current_lineup
+        # survived event2 intact.
+        self.assertEqual(len(lineups_seen), 2)
+        self.assertIsNone(lineups_seen[0])       # event2: no price data
+        self.assertIsNotNone(lineups_seen[1])    # event3: should have a lineup
