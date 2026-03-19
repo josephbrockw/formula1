@@ -7,6 +7,7 @@ Future work, deferred tasks, and ideas. Do not read unless explicitly asked.
 ## Bugs / Known Issues
 
 - **Run 9 crash (FS v2 + Pred v2 + Opt v2):** Only completes 26/43 races. Likely NaN propagation or feature mismatch between v2 feature store and v2 predictor. Blocks evaluation of the best configuration.
+- **optimize_lineup.py missing transfer constraints** — `optimize_lineup.py` line 94 calls `optimizer.optimize_single_race()` with no `constraints` dict (no `current_lineup`, `free_transfers`, or `transfer_penalty`). Every run is treated as unconstrained. Fix: load the most recent `MyLineup` for the season and build constraints the same way `next_race.py` does.
 
 ---
 

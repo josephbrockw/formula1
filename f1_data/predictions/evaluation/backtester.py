@@ -18,7 +18,7 @@ from predictions.models import (
 )
 from predictions.optimizers.base import Lineup, LineupOptimizer
 from predictions.predictors.base import PerformancePredictor
-from predictions.predictors.price_heuristic import predict_price_trajectory
+from predictions.predictors.price_heuristic import price_adjust_predictions, update_rolling_scores
 from predictions.predictors.xgboost_v1 import build_training_dataset, walk_forward_splits
 
 @dataclass
@@ -156,7 +156,7 @@ class Backtester:
             if not actuals:
                 continue
             mae_pos, mae_pts = _compute_mae(predictions, actuals)
-            adjusted = _price_adjust_predictions(predictions, test_event, rolling_scores, ps)
+            adjusted = price_adjust_predictions(predictions, test_event, rolling_scores, ps)
             constraints = {
                 "current_lineup": current_lineup,
                 "free_transfers": 2,
@@ -186,7 +186,7 @@ class Backtester:
             race_results.append(race_result)
             if on_race_done:
                 on_race_done(race_result, n, total)
-            _update_rolling_scores(rolling_scores, test_event, actuals)
+            update_rolling_scores(rolling_scores, test_event, actuals)
 
         importances = None
         if hasattr(predictor, "get_feature_importances"):
@@ -207,58 +207,6 @@ def _count_transfers(old: Lineup | None, new: Lineup | None) -> int:
         len(set(new.driver_ids) - set(old.driver_ids))
         + len(set(new.constructor_ids) - set(old.constructor_ids))
     )
-
-
-def _price_adjust_predictions(
-    predictions: pd.DataFrame,
-    event: Event,
-    rolling_scores: dict[int, list[tuple[float, Decimal]]],
-    price_sensitivity: float,
-) -> pd.DataFrame:
-    """
-    Boost each driver's predicted_fantasy_points by their expected price change
-    multiplied by price_sensitivity.
-
-    A driver rising $2M next race is worth price_sensitivity * 2 extra points to
-    the optimizer — that money expands future lineup budgets. Uses horizon=1 (next
-    race only) since uncertainty compounds quickly beyond one race.
-
-    Returns predictions unchanged when no price data exists for this event.
-    """
-    driver_prices = dict(
-        FantasyDriverPrice.objects.filter(event=event).values_list("driver_id", "price")
-    )
-    if not driver_prices:
-        return predictions
-    adjusted = predictions.copy()
-    for i, row in adjusted.iterrows():
-        did = int(row["driver_id"])
-        price = driver_prices.get(did)
-        if price is None:
-            continue
-        recent = rolling_scores.get(did, [])
-        trajectory = predict_price_trajectory(price, recent, [float(row["predicted_fantasy_points"])])
-        if trajectory:
-            price_change = float(trajectory[0] - price)
-            adjusted.at[i, "predicted_fantasy_points"] += price_change * price_sensitivity
-    return adjusted
-
-
-def _update_rolling_scores(
-    rolling_scores: dict[int, list[tuple[float, Decimal]]],
-    event: Event,
-    actuals: dict[int, tuple[float, float]],
-) -> None:
-    """Append this race's actual (pts, price) to each driver's rolling window."""
-    driver_prices = dict(
-        FantasyDriverPrice.objects.filter(event=event).values_list("driver_id", "price")
-    )
-    for did, (_, actual_pts) in actuals.items():
-        price = driver_prices.get(did)
-        if price is None:
-            continue
-        history = rolling_scores.get(did, [])
-        rolling_scores[did] = (history + [(actual_pts, price)])[-3:]
 
 
 def _actual_driver_results(event: Event) -> dict[int, tuple[float, float]]:

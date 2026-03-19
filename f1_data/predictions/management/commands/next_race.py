@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 from django.core.management.base import BaseCommand, CommandError
+from django.db.models import Max
 
 from decimal import Decimal
 
@@ -13,9 +14,11 @@ from predictions.features.v2_pandas import V2FeatureStore
 from predictions.models import (
     FantasyConstructorPrice,
     FantasyDriverPrice,
+    FantasyDriverScore,
     LineupRecommendation,
     MyLineup,
 )
+from predictions.predictors.price_heuristic import price_adjust_predictions, update_rolling_scores
 from predictions.optimizers.base import Lineup
 from predictions.optimizers.greedy_v1 import GreedyOptimizer
 from predictions.optimizers.greedy_v2 import GreedyOptimizerV2
@@ -75,6 +78,17 @@ class Command(BaseCommand):
             )
         predictor.fit(X, y)
 
+        rolling_scores: dict[int, list[tuple[float, Decimal]]] = {}
+        for e in train_events:
+            event_pts = dict(
+                FantasyDriverScore.objects.filter(event=e)
+                .values("driver_id")
+                .annotate(total=Max("race_total"))
+                .values_list("driver_id", "total")
+            )
+            actuals = {did: (0.0, float(pts)) for did, pts in event_pts.items()}
+            update_rolling_scores(rolling_scores, e, actuals)
+
         features = feature_store.get_all_driver_features(event.id)
         if features.empty:
             raise CommandError(
@@ -82,6 +96,7 @@ class Command(BaseCommand):
             )
 
         predictions = predictor.predict(features)
+        predictions = price_adjust_predictions(predictions, event, rolling_scores, settings.PRICE_SENSITIVITY)
         drivers_by_id = {d.id: d for d in Driver.objects.filter(season=event.season)}
         teams_by_id = {t.id: t for t in Team.objects.filter(season=event.season)}
 
