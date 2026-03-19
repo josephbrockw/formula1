@@ -118,6 +118,8 @@ Steps: (1) map circuits to lat/lon coordinates, (2) one-off backfill management 
 
 ## Tech Debt
 
+- **V3 hyperparameter tuning:** `tune_hyperparams` builds a plain `XGBRegressor` and doesn't apply exponential decay sample weights, so it tunes for the unweighted (V2) model. To tune for V3, extend the command with a `--predictor` flag; when `v3` is selected, compute decay weights from `event_index` and pass them as `sample_weight` to the CV scorer. This matters because recency weighting shifts the effective training distribution, which changes the optimal tree depth, learning rate, and regularisation.
+
 ---
 
 ## Ideas

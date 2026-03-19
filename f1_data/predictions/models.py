@@ -248,6 +248,7 @@ class BacktestRun(models.Model):
     seasons = models.CharField(max_length=100, help_text="Comma-separated years, e.g. '2023,2024'")
     min_train = models.IntegerField(default=5)
     budget = models.FloatField(default=100.0)
+    price_sensitivity = models.FloatField(default=5.0)
     created_at = models.DateTimeField(auto_now_add=True)
     # Aggregate metrics — filled at end of run
     mean_mae_position = models.FloatField(null=True, blank=True)

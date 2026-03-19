@@ -13,17 +13,19 @@ core app (existing)          predictions app (new)
 ─────────────────────        ─────────────────────────────────────────
 Season                  →    Feature Store
 Circuit                      ├── v1_pandas.V1FeatureStore  (15 features)
-Team                         └── v2_pandas.V2FeatureStore  (+ qualifying pos, team pts, practice delta) ← current best
-Driver                                     │
-Event                                      ▼
-Session                      Performance Predictor
-SessionResult                ├── XGBoostPredictor (v1)     MSE mean ± training residual std
-Lap                          └── XGBoostPredictorV2 (v2)   MSE mean + q10/q90 quantile bounds ← current best
-WeatherSample                              │
+Team                         ├── v2_pandas.V2FeatureStore  (25 features — weather, car-circuit fit, driver intelligence)
+Driver                       └── v3_pandas.V3FeatureStore  (29 features — richer wet weather, pruned zero-importance) ← current best
+Event                                      │
+Session                                    ▼
+SessionResult                Performance Predictor
+Lap                          ├── XGBoostPredictor (v1)      MSE mean ± training residual std
+WeatherSample                ├── XGBoostPredictorV2 (v2)    MSE mean + q10/q90 quantile bounds ← current best
+                             └── XGBoostPredictorV3 (v3)    V2 + exponential decay sample weights
+                                           │
                                            ▼
                              Optimizer
                              ├── GreedyOptimizer (v1)       PPM greedy only
-                             ├── GreedyOptimizerV2 (v2)     PPM greedy + upgrade pass + transfer constraints ← current best greedy
+                             ├── GreedyOptimizerV2 (v2)     PPM greedy + upgrade pass + transfer constraints ← current best
                              └── ILPOptimizer (v3)           Integer Linear Programming — provably optimal + transfer penalty in objective
                                            │
                                            ▼
@@ -31,38 +33,96 @@ WeatherSample                              │
                                            │
                                            ▼
                              Management Commands
-                             ├── predict_race
-                             ├── optimize_lineup
-                             └── backtest  (--feature-store v1/v2, --predictor v1/v2, --optimizer v1/v2/v3)
+                             ├── next_race        (main weekly command — train + predict + optimize)
+                             ├── backtest         (--feature-store v1/v2/v3, --predictor v1/v2/v3, --optimizer v1/v2/v3)
+                             ├── tune_hyperparams (random search over XGBoost params)
+                             ├── predict_race     (superseded by next_race)
+                             └── optimize_lineup  (superseded by next_race)
 ```
 
 The `predictions` app depends on `core` data but `core` knows nothing about predictions. Each layer talks to the next through a defined interface (Python Protocol), so implementations can be swapped independently.
 
 ---
 
+## Running Experiments
+
+### Backtesting
+
+Walk-forward backtesting re-runs the full train→predict→optimize loop on historical data. For each race, it trains on all prior races, predicts the current race, and selects a lineup — exactly as the system would have operated live.
+
+```bash
+cd f1_data
+python manage.py backtest --seasons 2022 2023 2024 2025 --min-train 5
+```
+
+Options:
+- `--feature-store v1|v2|v3` (default: v2) — one or more versions to sweep
+- `--predictor v1|v2|v3` (default: v2) — one or more versions to sweep
+- `--optimizer v1|v2|v3` (default: v2)
+- `--min-train N` (default: 5) — minimum races before making the first prediction
+- `--budget 100` (default: 100)
+- `--verbose` — print each race's selected lineup and cost
+
+Output columns: **MAE Pos**, **MAE Pts**, **Lineup** (actual points scored), **Optimal** (oracle ceiling), **Trades**.
+
+Pass multiple values to `--feature-store` or `--predictor` to run all combinations in one go:
+
+```bash
+# Compare v2 and v3 predictor with v3 feature store
+python manage.py backtest --feature-store v3 --predictor v2 v3 --optimizer v2 --seasons 2022 2023 2024 2025
+```
+
+Sweep shortcuts:
+```bash
+# All optimizer versions (v1/v2/v3) with fixed fs=v2, pred=v2
+python manage.py backtest --seasons 2024 2025 --all-optimizers
+
+# All combinations across all registered versions of every component
+python manage.py backtest --seasons 2024 2025 --all
+```
+
+Both sweep flags send a Slack summary when complete.
+
+---
+
+### Hyperparameter tuning
+
+Random search over the XGBoost hyperparameter space using TimeSeriesSplit cross-validation. Searches ~972 combinations; `--n-iter` controls how many are sampled. Run this when the predictor parameters in V2/V3 might need updating.
+
+```bash
+python manage.py tune_hyperparams \
+  --seasons 2022 2023 2024 2025 \
+  --feature-store v3 \
+  --n-iter 50 \
+  --top-n 10 \
+  --n-splits 4
+```
+
+Options:
+- `--seasons` — year(s) to build the training dataset from
+- `--feature-store v1|v2|v3` (default: v3)
+- `--n-iter` (default: 50) — random combinations to evaluate
+- `--top-n` (default: 10) — top results to show in the ranked table
+- `--n-splits` (default: 4) — CV folds
+
+Output: ranked table of param combinations with mean CV MAE, alongside the V2 defaults as a baseline.
+
+---
+
 ## Current Best Configuration
 
 ```bash
-python manage.py backtest --seasons 2024 2025 --min-train 5
-# defaults: --feature-store v2 --predictor v2
+python manage.py backtest --feature-store v3 --predictor v2 v3 --optimizer v2 --seasons 2022 2023 2024 2025
 ```
 
 | Config | MAE Pos | MAE Pts | Total Lineup Pts | Pts Left on Table |
 |--------|---------|---------|-----------------|-------------------|
-| v1 predictor + v2 feature store | 3.64 | 8.50 | 8374 | 869 |
-| v2 predictor (pure median) + v2 feature store | 3.64 | 8.20 | 7771 | 1472 |
-| **v2 predictor (hybrid) + v2 feature store** | **3.64** | **8.50** | **8374** | **869** |
+| fs=v3, pred=v2 | 3.56 | 8.43 | 14,037 | 5,486 |
+| **fs=v3, pred=v3** | **3.55** | **8.43** | **14,490** | **5,033** |
 
-Tested over 2024–2025 seasons, 43 predictions, `--min-train 5`.
+Tested over 2022–2025 seasons, 87 predictions, `--min-train 5`.
 
-The hybrid V2 matches V1 on lineup quality (same MSE model drives selection) while adding
-calibrated confidence bounds. The pure-median approach had lower MAE but 603 fewer lineup
-points — the median undervalues right-skewed high-upside drivers.
-
-The current best predictor is `XGBoostPredictorV2` (hybrid), which uses an MSE model for
-`predicted_fantasy_points` (expected value, correct target for the greedy optimizer) and separate
-q10/q90 quantile models for `confidence_lower`/`confidence_upper` (calibrated 80% prediction
-interval). This is the default for all commands.
+Pred=v3 (recency weighting) achieves **+453 lineup points (+3.2%)** with identical MAE. The improvement comes from better relative driver ranking rather than better average accuracy — recency weighting causes the model to focus on modern F1 patterns. See `DECISIONS.md` entry 2026-03-19 for full analysis including feature importance shifts.
 
 ---
 

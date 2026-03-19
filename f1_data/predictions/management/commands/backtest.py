@@ -79,6 +79,16 @@ class Command(BaseCommand):
             help="Run v1/v2/v3 optimizers with fixed feature-store=v2, predictor=v2 and send a Slack summary.",
         )
         parser.add_argument(
+            "--price-sensitivity",
+            type=float,
+            nargs="+",
+            default=[settings.PRICE_SENSITIVITY],
+            help=(
+                "Price sensitivity value(s) to sweep. Pass multiple to compare, "
+                "e.g. --price-sensitivity 0 1 2 3 5 8 10 15 20"
+            ),
+        )
+        parser.add_argument(
             "--verbose",
             action="store_true",
             default=False,
@@ -103,6 +113,7 @@ class Command(BaseCommand):
         fs_versions = options["feature_store"]
         pred_versions = options["predictor"]
         opt_version = options["optimizer"]
+        ps_values: list[float] = options["price_sensitivity"]
         verbose = options["verbose"]
 
         if options["all"]:
@@ -124,6 +135,21 @@ class Command(BaseCommand):
                 if run and result:
                     run_pairs.append((run, result))
             _send_all_done_notification(run_pairs, seasons)
+        elif len(ps_values) > 1:
+            fs = fs_versions[0]
+            pred = pred_versions[0]
+            opt = opt_version
+            seasons_str = "–".join(str(s) for s in [min(seasons), max(seasons)]) if len(seasons) > 1 else str(seasons[0])
+            self.stdout.write(
+                f"Price Sensitivity Sweep — fs={fs} pred={pred} opt={opt} — {seasons_str}"
+            )
+            sweep_rows: list[tuple[float, float | None, float | None]] = []
+            for ps in ps_values:
+                self.stdout.write(f"\n── price_sensitivity={ps} ──")
+                run, result = self._run_single(fs, pred, opt, events, seasons, min_train, budget, verbose, price_sensitivity=ps)
+                if run and result:
+                    sweep_rows.append((ps, result.total_lineup_points, result.total_optimal_points))
+            _print_price_sensitivity_table(self.stdout, sweep_rows, settings.PRICE_SENSITIVITY)
         elif len(fs_versions) > 1 or len(pred_versions) > 1:
             combos = list(itertools.product(fs_versions, pred_versions, [opt_version]))
             self.stdout.write(f"Running {len(combos)} combination(s) — seasons {seasons}")
@@ -138,6 +164,7 @@ class Command(BaseCommand):
             self._run_single(
                 fs_versions[0], pred_versions[0], opt_version,
                 events, seasons, min_train, budget, verbose,
+                price_sensitivity=ps_values[0],
             )
 
     def _run_single(
@@ -150,6 +177,7 @@ class Command(BaseCommand):
         min_train: int,
         budget: float,
         verbose: bool = False,
+        price_sensitivity: float | None = None,
     ) -> tuple[BacktestRun | None, BacktestResult | None]:
         if fs_version == "v3":
             feature_store = V3FeatureStore()
@@ -170,6 +198,7 @@ class Command(BaseCommand):
         else:
             optimizer = GreedyOptimizerV1()
 
+        ps = price_sensitivity if price_sensitivity is not None else settings.PRICE_SENSITIVITY
         run = BacktestRun.objects.create(
             feature_store_version=fs_version,
             predictor_version=pred_version,
@@ -177,6 +206,7 @@ class Command(BaseCommand):
             seasons=",".join(str(s) for s in sorted(seasons)),
             min_train=min_train,
             budget=budget,
+            price_sensitivity=ps,
         )
         n_splits = len(events) - min_train
         self.stdout.write(
@@ -229,6 +259,7 @@ class Command(BaseCommand):
             optimizer=optimizer,
             min_train=min_train,
             budget=budget,
+            price_sensitivity=ps,
             on_race_done=on_race_done,
         )
 
@@ -279,6 +310,30 @@ class Command(BaseCommand):
                 self.stdout.write(f"  {feat:<45} {imp:.4f}")
 
         return run, result
+
+
+def _print_price_sensitivity_table(
+    stdout,
+    rows: list[tuple[float, float | None, float | None]],
+    default_ps: float,
+) -> None:
+    """Print a comparison table for a price sensitivity sweep."""
+    if not rows:
+        return
+    stdout.write("")
+    stdout.write("Price Sensitivity Sweep")
+    stdout.write("─" * 52)
+    stdout.write(f"  {'PRICE_SENS':>10}  {'Lineup':>8}  {'Oracle':>8}  {'Left':>7}")
+    stdout.write("  " + "─" * 48)
+    for ps, lineup, oracle in rows:
+        lineup_str = f"{lineup:,.0f}" if lineup is not None else "—"
+        oracle_str = f"{oracle:,.0f}" if oracle is not None else "—"
+        left_str = f"{oracle - lineup:,.0f}" if lineup is not None and oracle is not None else "—"
+        marker = "  ←" if ps == default_ps else ""
+        stdout.write(
+            f"  {ps:>10.1f}  {lineup_str:>8}  {oracle_str:>8}  {left_str:>7}{marker}"
+        )
+    stdout.write("")
 
 
 def _send_all_done_notification(

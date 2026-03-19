@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 import pandas as pd
+from django.conf import settings
 from django.db.models import Max
 
 from core.models import Driver, Event, SessionResult
@@ -19,11 +20,6 @@ from predictions.optimizers.base import Lineup, LineupOptimizer
 from predictions.predictors.base import PerformancePredictor
 from predictions.predictors.price_heuristic import predict_price_trajectory
 from predictions.predictors.xgboost_v1 import build_training_dataset, walk_forward_splits
-
-# Points of future lineup value attributed to each $1M of predicted price appreciation.
-# A driver rising $2M is treated as scoring PRICE_SENSITIVITY * 2 extra points this race.
-PRICE_SENSITIVITY = 5.0
-
 
 @dataclass
 class RaceBacktestResult:
@@ -125,6 +121,7 @@ class Backtester:
         optimizer: LineupOptimizer,
         min_train: int = 5,
         budget: float = 100.0,
+        price_sensitivity: float | None = None,
         on_race_done: Callable[[RaceBacktestResult, int, int], None] | None = None,
     ) -> BacktestResult:
         """
@@ -136,6 +133,7 @@ class Backtester:
         on_race_done(result, n, total) is called after each race completes,
         where n is the 1-based index and total is the number of splits.
         """
+        ps = price_sensitivity if price_sensitivity is not None else settings.PRICE_SENSITIVITY
         race_results = []
         rolling_scores: dict[int, list[tuple[float, Decimal]]] = {}
         current_lineup: Lineup | None = None
@@ -158,7 +156,7 @@ class Backtester:
             if not actuals:
                 continue
             mae_pos, mae_pts = _compute_mae(predictions, actuals)
-            adjusted = _price_adjust_predictions(predictions, test_event, rolling_scores)
+            adjusted = _price_adjust_predictions(predictions, test_event, rolling_scores, ps)
             constraints = {
                 "current_lineup": current_lineup,
                 "free_transfers": 2,
@@ -215,12 +213,13 @@ def _price_adjust_predictions(
     predictions: pd.DataFrame,
     event: Event,
     rolling_scores: dict[int, list[tuple[float, Decimal]]],
+    price_sensitivity: float,
 ) -> pd.DataFrame:
     """
     Boost each driver's predicted_fantasy_points by their expected price change
-    multiplied by PRICE_SENSITIVITY.
+    multiplied by price_sensitivity.
 
-    A driver rising $2M next race is worth PRICE_SENSITIVITY * 2 extra points to
+    A driver rising $2M next race is worth price_sensitivity * 2 extra points to
     the optimizer — that money expands future lineup budgets. Uses horizon=1 (next
     race only) since uncertainty compounds quickly beyond one race.
 
@@ -241,7 +240,7 @@ def _price_adjust_predictions(
         trajectory = predict_price_trajectory(price, recent, [float(row["predicted_fantasy_points"])])
         if trajectory:
             price_change = float(trajectory[0] - price)
-            adjusted.at[i, "predicted_fantasy_points"] += price_change * PRICE_SENSITIVITY
+            adjusted.at[i, "predicted_fantasy_points"] += price_change * price_sensitivity
     return adjusted
 
 

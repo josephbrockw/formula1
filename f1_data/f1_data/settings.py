@@ -95,8 +95,10 @@ ILP_TRANSFER_THRESHOLD: float = 10
 #   ML_FEATURE_STORE: "v1" | "v2" | "v3"
 #   ML_PREDICTOR:     "v1" | "v2"
 #   ML_OPTIMIZER:     "v1" | "v2" | "v3"
+PRICE_SENSITIVITY: float = 5.0  # tune via: backtest --price-sensitivity 0 1 2 3 5 8 10 15 20
+
 ML_FEATURE_STORE: str = "v2"
-ML_PREDICTOR: str = "v2"
+ML_PREDICTOR: str = "v3"
 ML_OPTIMIZER: str = "v2"
 
 # Valid versions for each component (update when adding new versions).
