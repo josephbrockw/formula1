@@ -5,7 +5,7 @@ from collections import defaultdict
 import pandas as pd
 from django.db.models import Count, Sum
 
-from core.models import Driver, Event, SessionResult, WeatherSample
+from core.models import Driver, Event, SessionResult, Team, WeatherSample
 from predictions.features.v2_pandas import V2FeatureStore
 
 
@@ -16,10 +16,16 @@ from predictions.features.v2_pandas import V2FeatureStore
 
 class V3FeatureStore:
     """
-    Extends V2FeatureStore with 11 richer features (36 total):
+    Extends V2FeatureStore with 9 richer features (35 total).
 
+    Changes vs V2:
+      - weather_practice_rainfall (binary) is REPLACED by weather_practice_rain_fraction
+        (continuous 0.0–1.0), giving the model a graded wet signal.
+      - driver_vs_teammate_gap_last5 (from V2) is kept; the cross-season version is
+        omitted because V2's rolling-5 captures current form better.
+
+    New features added:
       weather_practice_rain_fraction        — 0.0–1.0 fraction of rainy practice samples
-                                              (vs V2's binary flag)
       circuit_historical_rain_rate          — fraction of past weekends at this circuit
                                               that had rain; proxy for forecast probability
       track_temp_deviation_from_circuit_mean — current practice track temp minus historical
@@ -28,20 +34,21 @@ class V3FeatureStore:
       driver_wet_vs_dry_position_delta      — per-driver mean finish position in wet races
                                               minus mean in dry races (negative = wet specialist)
       driver_races                          — total race starts across all seasons prior to
-                                              this event (experience proxy; 0 for rookies)
+                                              this event (experience proxy; 0 for true rookies)
       driver_wet_session_count              — total wet Q + R session starts across all history
-                                              before this event; grows from first wet session
-      driver_vs_teammate_gap_cross_season   — driver's mean race finish minus teammate's mean
-                                              across all shared races in history; negative =
-                                              outperforms teammate; 0.0 if < 3 shared races
+                                              before this event
       team_qualifying_position_mean_last3   — mean qualifying position of both team drivers
                                               over the last 3 qualifying events this season;
-                                              default 10.0 (mid-field)
-      driver_championship_position          — driver's current championship rank this season
-                                              based on points before this event; default 20
+                                              falls back to previous season when no current-
+                                              season data exists yet (e.g. round 1)
+      driver_vs_teammate_championship_gap   — driver's championship rank minus their teammate's
+                                              championship rank (season-to-date); negative means
+                                              the driver is ahead in the standings, positive means
+                                              behind; falls back to previous season's final ranks
+                                              at the start of a new season
       team_recent_finish_mean_last3         — team's mean race finish position across both
                                               drivers over the last 3 race events this season;
-                                              default 10.0
+                                              falls back to previous season when no data yet
     """
 
     def __init__(self) -> None:
@@ -59,7 +66,14 @@ class V3FeatureStore:
         if df.empty:
             return df
 
+        # Replace V2's binary rainfall flag with the continuous fraction.
+        # Both are derived from the same WeatherSample rows, but the fraction
+        # gives the model a graded signal (0.05 = light drizzle, 0.9 = full wet).
+        if "weather_practice_rainfall" in df.columns:
+            df = df.drop(columns=["weather_practice_rainfall"])
+
         event = Event.objects.select_related("circuit", "season").get(pk=event_id)
+        prev_year = event.season.year - 1
 
         # Four event-level scalars — same value for every driver row.
         new_features = _enhanced_weather_features(event)
@@ -67,7 +81,6 @@ class V3FeatureStore:
             df[key] = val  # pandas broadcasts the scalar to every row
 
         # Per-driver features that require cross-season lookup by driver code.
-        # Fetch code, id, and team_id together to avoid a second query later.
         driver_ids = df["driver_id"].astype(int).tolist()
         driver_rows = list(
             Driver.objects.filter(id__in=driver_ids).values("id", "code", "team_id")
@@ -98,7 +111,7 @@ class V3FeatureStore:
             df["driver_id"].astype(int).map(driver_id_to_race_count).fillna(0).astype(int)
         )
 
-        # Feature 1: wet session count (cross-season, Q + R)
+        # wet session count (cross-season, Q + R)
         wet_counts = _driver_wet_session_counts(list(code_to_driver_id.keys()), event)
         df["driver_wet_session_count"] = (
             df["driver_id"].astype(int)
@@ -106,17 +119,12 @@ class V3FeatureStore:
             .fillna(0).astype(int)
         )
 
-        # Feature 2: teammate gap (cross-season)
-        teammate_gaps = _driver_vs_teammate_gap(code_to_driver_id, driver_id_to_team_id, event)
-        df["driver_vs_teammate_gap_cross_season"] = (
-            df["driver_id"].astype(int)
-            .map({driver_id: teammate_gaps[code] for code, driver_id in code_to_driver_id.items() if code in teammate_gaps})
-            .fillna(0.0)
-        )
-
-        # Features 3 & 5: team-level current season
-        qualifying_means = _team_qualifying_means(team_ids, event)
-        finish_means = _team_recent_finish_means(team_ids, event)
+        # Team-level current season features with previous-season fallback.
+        # At the start of a new season (rounds 1–2), there are no current-season
+        # results yet — without a fallback, every team gets the same default (10.0),
+        # which is pure noise. Using last season's final data gives real signal.
+        qualifying_means = _team_qualifying_means(team_ids, event, prev_year)
+        finish_means = _team_recent_finish_means(team_ids, event, prev_year)
         df["team_qualifying_position_mean_last3"] = (
             df["driver_id"].astype(int).map(driver_id_to_team_id).map(qualifying_means).fillna(10.0)
         )
@@ -124,12 +132,13 @@ class V3FeatureStore:
             df["driver_id"].astype(int).map(driver_id_to_team_id).map(finish_means).fillna(10.0)
         )
 
-        # Feature 4: championship position (current season)
-        champ_positions = _driver_championship_positions(list(code_to_driver_id.keys()), event)
-        df["driver_championship_position"] = (
-            df["driver_id"].astype(int)
-            .map({driver_id: champ_positions[code] for code, driver_id in code_to_driver_id.items() if code in champ_positions})
-            .fillna(20).astype(int)
+        # Championship rank relative to teammate, with previous-season fallback.
+        # Unlike raw championship position (correlated with team_constructor_standing_rank),
+        # this isolates driver quality from car quality: both teammates share the same
+        # car, so the difference is pure driver performance signal.
+        champ_vs_teammate = _driver_championship_vs_teammate_gap(driver_rows, event, prev_year)
+        df["driver_vs_teammate_championship_gap"] = (
+            df["driver_id"].astype(int).map(champ_vs_teammate).fillna(0.0)
         )
 
         return df
@@ -158,7 +167,7 @@ def _practice_rain_fraction(event_id: int) -> float:
     dry conditions the rest of the time might score 0.05 rather than 1.0.
     This gives the model a continuous signal about *how wet* practice was.
 
-    Default: 0.0 (no samples → treat as dry).
+    Default: 0.0 (no samples → assume dry).
     """
     samples = list(
         WeatherSample.objects.filter(
@@ -179,12 +188,11 @@ def _circuit_historical_rain_rate(event: Event) -> float:
     We use events-with-weather-data as denominator (not all events) to avoid
     falsely crediting a dry circuit that we just never collected weather for.
 
-    Default: 0.2 — a soft prior acknowledging uncertainty (not 0.0).
+    Default: 0.0 — assume dry when no historical weather data exists.
     """
     if event.circuit is None:
-        return 0.2
+        return 0.0
 
-    # Fetch all past events at this circuit excluding the current one
     past_event_ids = list(
         Event.objects.filter(
             circuit=event.circuit,
@@ -192,9 +200,8 @@ def _circuit_historical_rain_rate(event: Event) -> float:
         ).values_list("id", flat=True)
     )
     if not past_event_ids:
-        return 0.2
+        return 0.0
 
-    # For each past event, check: (a) has any weather data, (b) has any rain
     weather_by_event: dict[int, list[bool]] = {}
     for row in WeatherSample.objects.filter(
         session__event_id__in=past_event_ids,
@@ -204,7 +211,7 @@ def _circuit_historical_rain_rate(event: Event) -> float:
 
     events_with_data = len(weather_by_event)
     if events_with_data == 0:
-        return 0.2  # No historical weather at all — fall back to soft prior
+        return 0.0
 
     events_with_rain = sum(1 for samples in weather_by_event.values() if any(samples))
     return events_with_rain / events_with_data
@@ -215,15 +222,12 @@ def _track_temp_deviation(event: Event) -> float:
     Current practice mean track temp minus historical mean at this circuit (°C).
 
     Positive = hotter than usual, negative = cooler.
-    The model can learn that unusually cold conditions affect tyre warm-up,
-    and unusually hot conditions cause degradation outliers.
 
     Default: 0.0 (no deviation — treat as normal).
     """
     if event.circuit is None:
         return 0.0
 
-    # Current practice track temp
     current_samples = list(
         WeatherSample.objects.filter(
             session__event_id=event.id,
@@ -234,7 +238,6 @@ def _track_temp_deviation(event: Event) -> float:
         return 0.0
     current_mean = sum(current_samples) / len(current_samples)
 
-    # Historical track temp at this circuit (excluding this event)
     past_event_ids = list(
         Event.objects.filter(
             circuit=event.circuit,
@@ -252,19 +255,14 @@ def _track_temp_deviation(event: Event) -> float:
     if not hist_samples:
         return 0.0
 
-    hist_mean = sum(hist_samples) / len(hist_samples)
-    return current_mean - hist_mean
+    return current_mean - sum(hist_samples) / len(hist_samples)
 
 
 def _air_temp_mean(event_id: int) -> float:
     """
     Mean air temperature across practice weather samples (°C).
 
-    Air temp correlates with tyre operating window — teams tune aero/tyre
-    pressure differently at 40°C vs 15°C. Raw temp (not deviation) lets
-    the model learn absolute temperature thresholds.
-
-    Default: 0.0 (no samples).
+    Default: 0.0 (no samples — assume dry/neutral).
     """
     samples = list(
         WeatherSample.objects.filter(
@@ -281,12 +279,8 @@ def _driver_race_counts(codes: list[str], event: Event) -> dict[str, int]:
     """
     Count race starts per driver across all seasons before this event.
 
-    A "race start" is any SessionResult for a race session (session_type="R"),
-    regardless of finishing status. This gives the model an experience signal:
-    a rookie with 3 starts is very different from a veteran with 280.
-
-    Single aggregation query across all drivers — not N queries.
     Default 0 for drivers with no prior records (true rookies).
+    Single aggregation query across all drivers.
     """
     counts = dict(
         SessionResult.objects.filter(
@@ -311,18 +305,13 @@ def _wet_vs_dry_position_deltas(
     Interpretation:
       negative → wet specialist (finishes better in wet, e.g. −3.0 = 3 places forward)
       positive → struggles in wet (e.g. +2.5 = 2.5 places back)
-      0.0      → neutral or insufficient dry history
 
     Defaults:
-      < 3 wet appearances  → +2.0  (rookie wet penalty; established drivers get credit)
+      < 3 wet appearances  → +2.0  (rookie wet penalty)
       < 3 dry appearances  → 0.0   (can't compute a meaningful dry baseline)
-      no past results      → +2.0
-
-    Single batch: two DB queries for all drivers (results + rainy event ids), not N queries.
     """
     codes = list(code_to_driver_id.keys())
 
-    # 1. All past race results for these driver codes across all seasons
     past_results = list(
         SessionResult.objects.filter(
             driver__code__in=codes,
@@ -335,7 +324,6 @@ def _wet_vs_dry_position_deltas(
     if not past_results:
         return {code: 2.0 for code in codes}
 
-    # 2. Which of those race events had rain during the race session
     all_event_ids = {r["session__event_id"] for r in past_results}
     rainy_event_ids = set(
         WeatherSample.objects.filter(
@@ -345,7 +333,6 @@ def _wet_vs_dry_position_deltas(
         ).values_list("session__event_id", flat=True).distinct()
     )
 
-    # 3. Split each driver's results into wet / dry and compute the delta
     wet_positions: dict[str, list[float]] = defaultdict(list)
     dry_positions: dict[str, list[float]] = defaultdict(list)
     for row in past_results:
@@ -378,11 +365,6 @@ def _driver_wet_session_counts(codes: list[str], event: Event) -> dict[str, int]
 
     Unlike wet/dry delta (which needs ≥3 wet races to produce a signal),
     this counter starts from the very first wet session and keeps growing.
-    Hamilton/Alonso will have high counts; a 2024 rookie will have 0.
-
-    Two queries for all drivers at once:
-      1. All Q+R participations before this event
-      2. Which (event_id, session_type) pairs had rainfall → intersect in Python
 
     Default: 0.
     """
@@ -412,77 +394,17 @@ def _driver_wet_session_counts(codes: list[str], event: Event) -> dict[str, int]
     return {code: counts.get(code, 0) for code in codes}
 
 
-def _driver_vs_teammate_gap(
-    code_to_driver_id: dict[str, int],
-    driver_id_to_team_id: dict[int, int],
-    event: Event,
-) -> dict[str, float]:
-    """
-    Driver's mean race finish position minus teammate's mean finish across all shared
-    race appearances in history. Negative = outperforms teammate.
-
-    Isolates driver skill from car quality: two teammates in the same car who average
-    8th and 12th show −2 and +2 respectively, regardless of which team they're on.
-
-    Default: 0.0 if fewer than 3 shared races (insufficient data). Neutral assumption —
-    no penalty applied.
-
-    Two queries for all drivers at once.
-    """
-    codes = list(code_to_driver_id.keys())
-    our_results = list(
-        SessionResult.objects.filter(
-            driver__code__in=codes,
-            session__session_type="R",
-            session__event__event_date__lt=event.event_date,
-            position__isnull=False,
-        ).values("driver__code", "session__event_id", "position", "team_id")
-    )
-    if not our_results:
-        return {code: 0.0 for code in codes}
-
-    all_event_ids = {r["session__event_id"] for r in our_results}
-    all_results = list(
-        SessionResult.objects.filter(
-            session__event_id__in=all_event_ids,
-            session__session_type="R",
-            position__isnull=False,
-        ).values("driver__code", "session__event_id", "position", "team_id")
-    )
-
-    # Group all results by (event_id, team_id) → list of (code, position)
-    team_race_results: dict[tuple, list[tuple]] = defaultdict(list)
-    for r in all_results:
-        team_race_results[(r["session__event_id"], r["team_id"])].append(
-            (r["driver__code"], float(r["position"]))
-        )
-
-    gaps: dict[str, list[float]] = defaultdict(list)
-    for r in our_results:
-        key = (r["session__event_id"], r["team_id"])
-        teammates = [(c, p) for c, p in team_race_results[key] if c != r["driver__code"]]
-        if teammates:
-            tm_pos = sum(p for _, p in teammates) / len(teammates)
-            gaps[r["driver__code"]].append(float(r["position"]) - tm_pos)
-
-    result = {}
-    for code in codes:
-        g = gaps.get(code, [])
-        result[code] = sum(g) / len(g) if len(g) >= 3 else 0.0
-    return result
-
-
-def _team_qualifying_means(team_ids: list[int], event: Event) -> dict[int, float]:
+def _team_qualifying_means(team_ids: list[int], event: Event, prev_year: int) -> dict[int, float]:
     """
     Mean qualifying position of both team drivers over the last 3 qualifying
     events in the current season.
 
-    Current season only — team competitiveness changes year-to-year. A team
-    qualifying 1st–2nd vs 15th–16th has a fundamentally different race outcome
-    distribution. Last 3 events capture recent form, not full-season average.
+    Falls back to the previous season's last-3 qualifying events for teams
+    with no current-season qualifying history yet (e.g. first 1–2 races of
+    the year). This prevents all teams from sharing the same 10.0 default
+    at the season start, which is pure noise.
 
-    Default: 10.0 (mid-field assumption when no current-season qualifying history).
-    Single query.
+    Default: 10.0 (mid-field) if no data in either season.
     """
     rows = list(
         SessionResult.objects.filter(
@@ -498,6 +420,32 @@ def _team_qualifying_means(team_ids: list[int], event: Event) -> dict[int, float
     for r in rows:
         team_event_pos[r["team_id"]][r["session__event_id"]].append(float(r["position"]))
 
+    # Previous-season fallback for teams with no current-season qualifying data.
+    # We can't filter by team_id across seasons — a 2024 Red Bull has a different
+    # team_id than the 2023 Red Bull. Instead we look up each team's stable `code`
+    # and query the previous season by code, then route results back to the
+    # current-season team_id.
+    no_data_team_ids = [t for t in team_ids if t not in team_event_pos]
+    if no_data_team_ids:
+        code_to_current_id = {
+            code: tid for tid, code in
+            Team.objects.filter(id__in=no_data_team_ids, code__gt="").values_list("id", "code")
+        }
+        if code_to_current_id:
+            prev_rows = list(
+                SessionResult.objects.filter(
+                    team__code__in=list(code_to_current_id.keys()),
+                    session__session_type="Q",
+                    session__event__season__year=prev_year,
+                    position__isnull=False,
+                ).values("team__code", "session__event_id", "position")
+                .order_by("session__event__event_date")
+            )
+            for r in prev_rows:
+                current_id = code_to_current_id.get(r["team__code"])
+                if current_id:
+                    team_event_pos[current_id][r["session__event_id"]].append(float(r["position"]))
+
     result = {}
     for team_id in team_ids:
         event_means = [sum(v) / len(v) for v in team_event_pos[team_id].values()]
@@ -506,17 +454,54 @@ def _team_qualifying_means(team_ids: list[int], event: Event) -> dict[int, float
     return result
 
 
-def _driver_championship_positions(codes: list[str], event: Event) -> dict[str, int]:
+def _driver_championship_vs_teammate_gap(
+    driver_rows: list[dict],
+    event: Event,
+    prev_year: int,
+) -> dict[int, float]:
+    """
+    For each driver: their championship rank minus their current-season teammate's rank.
+
+    Negative = driver leads teammate in standings (extracting more from the car).
+    Positive = driver trails teammate.
+
+    Reuses _driver_championship_positions (with its prev-season fallback) so that
+    round 1 of a new season compares prior-season final ranks rather than defaulting
+    everyone to the same value.
+
+    Default: 0.0 — neutral when no teammate is found or no data in either season.
+    """
+    codes = [r["code"] for r in driver_rows]
+    champ_positions = _driver_championship_positions(codes, event, prev_year)
+
+    team_to_codes: dict[int, list[str]] = defaultdict(list)
+    for r in driver_rows:
+        team_to_codes[r["team_id"]].append(r["code"])
+
+    result: dict[int, float] = {}
+    for r in driver_rows:
+        code = r["code"]
+        teammates = [c for c in team_to_codes[r["team_id"]] if c != code]
+        if not teammates:
+            result[r["id"]] = 0.0
+            continue
+        my_rank = champ_positions.get(code, 20)
+        teammate_rank = champ_positions.get(teammates[0], 20)
+        result[r["id"]] = float(my_rank - teammate_rank)
+    return result
+
+
+def _driver_championship_positions(codes: list[str], event: Event, prev_year: int) -> dict[str, int]:
     """
     Driver's current championship rank in the current season, based on race
     points accumulated before this event.
 
-    Championship leaders are in faster cars and/or in better form — a compounding
-    signal of car quality + reliability + pace. P1 vs P18 has vastly different
-    expected outcomes.
+    Falls back to the driver's final championship rank from the previous season
+    for any driver not yet on the board in the current season. This is a much
+    better signal than defaulting everyone to 20th at the start of the year —
+    a defending champion or consistent top-5 finisher should get credit for it.
 
-    Mirrors V2's _constructor_standing_ranks pattern.
-    Default: 20 (unranked = last in the field). Single aggregation query.
+    Default: 20 (unranked in both current and previous season). Single aggregation query.
     """
     standings = list(
         SessionResult.objects.filter(
@@ -532,19 +517,37 @@ def _driver_championship_positions(codes: list[str], event: Event) -> dict[str, 
         .values_list("driver__code", flat=True)
     )
     rank_map = {code: rank + 1 for rank, code in enumerate(standings)}
-    return {code: rank_map.get(code, 20) for code in codes}
+    result = {code: rank_map.get(code, 20) for code in codes}
+
+    # Previous-season fallback for drivers not yet ranked this season
+    unranked = [c for c in codes if c not in rank_map]
+    if unranked:
+        prev_standings = list(
+            SessionResult.objects.filter(
+                driver__code__in=unranked,
+                session__session_type="R",
+                session__event__season__year=prev_year,
+                points__isnull=False,
+            )
+            .values("driver__code")
+            .annotate(total=Sum("points"))
+            .order_by("-total")
+            .values_list("driver__code", flat=True)
+        )
+        for rank, code in enumerate(prev_standings):
+            result[code] = rank + 1  # overrides the placeholder 20
+
+    return result
 
 
-def _team_recent_finish_means(team_ids: list[int], event: Event) -> dict[int, float]:
+def _team_recent_finish_means(team_ids: list[int], event: Event, prev_year: int) -> dict[int, float]:
     """
     Team's mean race finish position across both drivers over the last 3 race
     events in the current season.
 
-    Captures whether a team is on an upswing or struggling (reliability issues,
-    development regression, setup issues at specific track types). Complements
-    team_qualifying_position_mean_last3 — a team can qualify well but retire often.
+    Falls back to previous season's last-3 race events for teams with no
+    current-season race history yet (same reasoning as _team_qualifying_means).
 
-    Same pattern as _team_qualifying_means but for session_type="R".
     Default: 10.0. Single query.
     """
     rows = list(
@@ -560,6 +563,27 @@ def _team_recent_finish_means(team_ids: list[int], event: Event) -> dict[int, fl
     team_event_pos: dict[int, dict[int, list[float]]] = defaultdict(lambda: defaultdict(list))
     for r in rows:
         team_event_pos[r["team_id"]][r["session__event_id"]].append(float(r["position"]))
+
+    no_data_team_ids = [t for t in team_ids if t not in team_event_pos]
+    if no_data_team_ids:
+        code_to_current_id = {
+            code: tid for tid, code in
+            Team.objects.filter(id__in=no_data_team_ids, code__gt="").values_list("id", "code")
+        }
+        if code_to_current_id:
+            prev_rows = list(
+                SessionResult.objects.filter(
+                    team__code__in=list(code_to_current_id.keys()),
+                    session__session_type="R",
+                    session__event__season__year=prev_year,
+                    position__isnull=False,
+                ).values("team__code", "session__event_id", "position")
+                .order_by("session__event__event_date")
+            )
+            for r in prev_rows:
+                current_id = code_to_current_id.get(r["team__code"])
+                if current_id:
+                    team_event_pos[current_id][r["session__event_id"]].append(float(r["position"]))
 
     result = {}
     for team_id in team_ids:

@@ -12,8 +12,7 @@ The core project is in f1_data/ which is the Django app and chrome_extension/ is
 ## Current Focus
 
 - **Sweep PRICE_SENSITIVITY:** Run full backtest with values ∈ [0, 1, 2, 3, 5, 8, 10, 15, 20]. Current value of 5.0 is untuned — 30 min run time, potentially significant improvement.
-- **Weather features:** `forecast_rain_probability` (binary or 0–1), `track_temp_deviation_from_mean`, `air_temp`. Rain completely reshuffles the field; even a simple wet-race flag lets the model learn wet-weather specialists. Session weather data already exists in the DB. Consider non binary solution. What are the odds of rain? That's something that we can probably get a backlog of history for. Don't know if that makes sense.
-- **Intra-team delta:** `driver_position_mean_last5 - teammate_position_mean_last5`. Isolates driver skill from car performance — a driver who consistently beats their teammate by 3 positions is extracting more from the car than form features alone show.
+- **XGBoost hyperparameter tuning:** Grid or random search over `n_estimators` [20, 50, 100], `max_depth` [2, 3, 4], `learning_rate` [0.05, 0.1, 0.2], `min_child_weight` [3, 5, 10], `subsample` [0.7, 0.8], `colsample_bytree` [0.7, 0.8], `reg_lambda` [1, 5, 10]. With 100–800 rows, shallow trees + heavy regularisation will almost certainly outperform defaults.
 
 ## Context Loading
 

@@ -45,29 +45,29 @@ class XGBoostPredictorV2:
     """
 
     def __init__(self) -> None:
-        self._position_model = XGBRegressor(
-            n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42, verbosity=0
-        )
-        self._points_mean_model = XGBRegressor(
-            n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42, verbosity=0
-        )
-        self._points_q10 = XGBRegressor(
-            objective="reg:quantileerror",
-            quantile_alpha=0.1,
-            n_estimators=100,
-            max_depth=4,
+        # Hyperparameters tuned via tune_hyperparams --seasons 2022 2023 2024 2025
+        # --feature-store v3 --n-iter 50 (2026-03-19).
+        # CV MAE improved from 3.779 (depth=4 defaults) → 3.517 (Δ -0.262).
+        # Key insight: depth=2 + column/row subsampling prevents overfitting on the
+        # small training windows (100–400 rows) seen in early backtest splits.
+        _base = dict(
+            n_estimators=50,
+            max_depth=2,
             learning_rate=0.1,
+            min_child_weight=3,
+            subsample=0.7,
+            colsample_bytree=0.7,
+            reg_lambda=1,
             random_state=42,
             verbosity=0,
+        )
+        self._position_model = XGBRegressor(**_base)
+        self._points_mean_model = XGBRegressor(**_base)
+        self._points_q10 = XGBRegressor(
+            objective="reg:quantileerror", quantile_alpha=0.1, **_base
         )
         self._points_q90 = XGBRegressor(
-            objective="reg:quantileerror",
-            quantile_alpha=0.9,
-            n_estimators=100,
-            max_depth=4,
-            learning_rate=0.1,
-            random_state=42,
-            verbosity=0,
+            objective="reg:quantileerror", quantile_alpha=0.9, **_base
         )
         self._feature_cols: list[str] = []
         self._fitted = False
@@ -80,6 +80,17 @@ class XGBoostPredictorV2:
         self._points_q10.fit(X_train, y[TARGET_POINTS])
         self._points_q90.fit(X_train, y[TARGET_POINTS])
         self._fitted = True
+
+    def get_feature_importances(self) -> dict[str, float]:
+        """Return {feature_name: importance} from the fantasy-points model, sorted descending."""
+        if not self._fitted:
+            return {}
+        return dict(
+            sorted(
+                zip(self._feature_cols, self._points_mean_model.feature_importances_),
+                key=lambda x: -x[1],
+            )
+        )
 
     def predict(self, features: pd.DataFrame) -> pd.DataFrame:
         if not self._fitted:

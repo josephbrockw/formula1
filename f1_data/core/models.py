@@ -31,6 +31,7 @@ class Team(models.Model):
     season = models.ForeignKey(Season, on_delete=models.CASCADE)
     name = models.CharField(max_length=200)
     full_name = models.CharField(max_length=200)
+    code = models.CharField(max_length=50, blank=True, db_index=True)
 
     class Meta:
         unique_together = [('season', 'name')]

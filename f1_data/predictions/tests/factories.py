@@ -49,8 +49,8 @@ def make_event(
     )
 
 
-def make_team(season: Season, name: str = "Red Bull Racing") -> Team:
-    return Team.objects.create(season=season, name=name, full_name=name)
+def make_team(season: Season, name: str = "Red Bull Racing", code: str = "") -> Team:
+    return Team.objects.create(season=season, name=name, full_name=name, code=code)
 
 
 def make_driver(

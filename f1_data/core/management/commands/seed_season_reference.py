@@ -8,7 +8,7 @@ from django.core.management.base import BaseCommand, CommandError
 from core.models import Driver, Season, Team
 
 
-def _upsert_team(season: Season, roster_label: str, fastf1_name: str) -> tuple[Team, int, int]:
+def _upsert_team(season: Season, roster_label: str, fastf1_name: str, code: str = "") -> tuple[Team, int, int]:
     """Find or create a Team, renaming it if fastf1_name changed since last seed.
 
     Returns (team, created, renamed) where each is 0 or 1.
@@ -18,18 +18,28 @@ def _upsert_team(season: Season, roster_label: str, fastf1_name: str) -> tuple[T
     2. By roster_label — team was seeded before we knew the FastF1 name.
        Rename it in-place so all FK references (drivers, prices) remain valid.
     3. Neither exists — create fresh.
+
+    If `code` is provided it is written to team.code; an empty `code` is
+    ignored so that re-seeding never blanks out an existing code value.
     """
     team = Team.objects.filter(season=season, name=fastf1_name).first()
     if team:
+        if code and team.code != code:
+            team.code = code
+            team.save(update_fields=["code"])
         return team, 0, 0
 
     team = Team.objects.filter(season=season, name=roster_label).first()
     if team:
+        fields = ["name"]
         team.name = fastf1_name
-        team.save(update_fields=["name"])
+        if code and team.code != code:
+            team.code = code
+            fields.append("code")
+        team.save(update_fields=fields)
         return team, 0, 1
 
-    team = Team.objects.create(season=season, name=fastf1_name)
+    team = Team.objects.create(season=season, name=fastf1_name, code=code)
     return team, 1, 0
 
 
@@ -72,7 +82,8 @@ class Command(BaseCommand):
         for team_data in data["teams"]:
             roster_label = team_data["name"]
             fastf1_name = team_data.get("fastf1_name", roster_label)
-            team, created, renamed = _upsert_team(season, roster_label, fastf1_name)
+            code = team_data.get("code", "")
+            team, created, renamed = _upsert_team(season, roster_label, fastf1_name, code)
             team_map[roster_label] = team
             teams_created += created
             teams_renamed += renamed

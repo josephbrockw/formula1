@@ -44,6 +44,25 @@ class RaceBacktestResult:
     optimal_actual_points: float | None
     n_transfers: int = 0
     lineup: "Lineup | None" = None
+    season_year: int = 0
+
+
+@dataclass
+class SeasonSummary:
+    """Aggregated metrics for a single season within a backtest."""
+
+    year: int
+    n_races: int
+    mae_position: float
+    mae_fantasy_points: float
+    lineup_points: float | None
+    optimal_points: float | None
+
+    @property
+    def left_on_table(self) -> float | None:
+        if self.lineup_points is None or self.optimal_points is None:
+            return None
+        return self.optimal_points - self.lineup_points
 
 
 @dataclass
@@ -51,6 +70,7 @@ class BacktestResult:
     """Aggregated backtest output across all evaluated races."""
 
     race_results: list[RaceBacktestResult]
+    feature_importances: dict[str, float] | None = None
 
     @property
     def mean_mae_position(self) -> float:
@@ -71,6 +91,29 @@ class BacktestResult:
     def total_optimal_points(self) -> float | None:
         pts = [r.optimal_actual_points for r in self.race_results if r.optimal_actual_points is not None]
         return sum(pts) if pts else None
+
+    @property
+    def by_season(self) -> list[SeasonSummary]:
+        """Per-season breakdown, sorted by year."""
+        buckets: dict[int, list[RaceBacktestResult]] = {}
+        for r in self.race_results:
+            buckets.setdefault(r.season_year, []).append(r)
+        summaries = []
+        for year in sorted(buckets):
+            races = buckets[year]
+            mae_pos_vals = [r.mae_position for r in races]
+            mae_pts_vals = [r.mae_fantasy_points for r in races]
+            lineup_pts = [r.lineup_actual_points for r in races if r.lineup_actual_points is not None]
+            opt_pts = [r.optimal_actual_points for r in races if r.optimal_actual_points is not None]
+            summaries.append(SeasonSummary(
+                year=year,
+                n_races=len(races),
+                mae_position=sum(mae_pos_vals) / len(mae_pos_vals),
+                mae_fantasy_points=sum(mae_pts_vals) / len(mae_pts_vals),
+                lineup_points=sum(lineup_pts) if lineup_pts else None,
+                optimal_points=sum(opt_pts) if opt_pts else None,
+            ))
+        return summaries
 
 
 class Backtester:
@@ -140,12 +183,17 @@ class Backtester:
                 optimal_actual_points=optimal,
                 n_transfers=n_transfers,
                 lineup=new_lineup,
+                season_year=test_event.season.year,
             )
             race_results.append(race_result)
             if on_race_done:
                 on_race_done(race_result, n, total)
             _update_rolling_scores(rolling_scores, test_event, actuals)
-        return BacktestResult(race_results=race_results)
+
+        importances = None
+        if hasattr(predictor, "get_feature_importances"):
+            importances = predictor.get_feature_importances() or None
+        return BacktestResult(race_results=race_results, feature_importances=importances)
 
 
 # ---------------------------------------------------------------------------

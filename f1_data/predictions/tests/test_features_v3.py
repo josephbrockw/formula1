@@ -6,10 +6,10 @@ from django.test import TestCase
 
 from predictions.features.v3_pandas import (
     V3FeatureStore,
+    _driver_championship_positions,
+    _driver_championship_vs_teammate_gap,
     _driver_race_counts,
     _driver_wet_session_counts,
-    _driver_vs_teammate_gap,
-    _driver_championship_positions,
     _team_qualifying_means,
     _team_recent_finish_means,
     _wet_vs_dry_position_deltas,
@@ -25,7 +25,7 @@ from predictions.tests.factories import (
     make_weather_sample,
 )
 
-V3_FEATURE_COUNT = 36  # 25 from V2 + 11 new V3 features
+V3_FEATURE_COUNT = 34  # 24 from V2 (weather_practice_rainfall replaced) + 10 new V3 features
 
 
 # ---------------------------------------------------------------------------
@@ -514,86 +514,6 @@ class TestDriverWetSessionCount(TestCase):
 
 
 # ---------------------------------------------------------------------------
-# _driver_vs_teammate_gap unit tests
-# ---------------------------------------------------------------------------
-
-
-class TestDriverVsTeammateGap(TestCase):
-    """
-    Unit tests for _driver_vs_teammate_gap.
-
-    Negative gap = driver outperforms teammate. Zero returned when < 3 shared races.
-    """
-
-    def setUp(self) -> None:
-        self.season, self.team, self.driver, self.target_event = _setup_base()
-        self.teammate = make_driver(self.season, self.team, code="SAI", driver_number=55)
-        self.code_to_driver_id = {
-            "LEC": self.driver.id,
-            "SAI": self.teammate.id,
-        }
-        self.driver_id_to_team_id = {
-            self.driver.id: self.team.id,
-            self.teammate.id: self.team.id,
-        }
-
-    def test_driver_beating_teammate_has_negative_gap(self) -> None:
-        """
-        LEC finishes 3rd, SAI finishes 8th in 3 shared races.
-        LEC gap = 3 - 8 = -5.0 (outperforms)
-        SAI gap = 8 - 3 = +5.0 (underperforms)
-        """
-        for i in range(1, 4):
-            _past_race_shared(
-                self.season, round_number=i,
-                drivers_positions=[(self.driver, 3), (self.teammate, 8)],
-                team=self.team,
-            )
-        result = _driver_vs_teammate_gap(
-            self.code_to_driver_id, self.driver_id_to_team_id, self.target_event
-        )
-        self.assertAlmostEqual(result["LEC"], -5.0)
-        self.assertAlmostEqual(result["SAI"], 5.0)
-
-    def test_fewer_than_3_shared_races_returns_zero(self) -> None:
-        """Only 2 shared races → insufficient data → 0.0 for both."""
-        for i in range(1, 3):  # 2 races
-            _past_race_shared(
-                self.season, round_number=i,
-                drivers_positions=[(self.driver, 2), (self.teammate, 10)],
-                team=self.team,
-            )
-        result = _driver_vs_teammate_gap(
-            self.code_to_driver_id, self.driver_id_to_team_id, self.target_event
-        )
-        self.assertAlmostEqual(result["LEC"], 0.0)
-        self.assertAlmostEqual(result["SAI"], 0.0)
-
-    def test_no_history_returns_zero(self) -> None:
-        """No past results → 0.0 default."""
-        result = _driver_vs_teammate_gap(
-            self.code_to_driver_id, self.driver_id_to_team_id, self.target_event
-        )
-        self.assertAlmostEqual(result["LEC"], 0.0)
-
-    def test_gap_averaged_across_races(self) -> None:
-        """
-        3 races: LEC finishes 2, 4, 6 — SAI finishes 8, 10, 12.
-        LEC mean = 4.0, SAI mean = 10.0. LEC gap = 4 - 10 = -6.0.
-        """
-        for i, (lec_pos, sai_pos) in enumerate([(2, 8), (4, 10), (6, 12)], start=1):
-            _past_race_shared(
-                self.season, round_number=i,
-                drivers_positions=[(self.driver, lec_pos), (self.teammate, sai_pos)],
-                team=self.team,
-            )
-        result = _driver_vs_teammate_gap(
-            self.code_to_driver_id, self.driver_id_to_team_id, self.target_event
-        )
-        self.assertAlmostEqual(result["LEC"], -6.0)
-
-
-# ---------------------------------------------------------------------------
 # _team_qualifying_means unit tests
 # ---------------------------------------------------------------------------
 
@@ -620,8 +540,8 @@ class TestTeamQualifyingMeanLast3(TestCase):
         make_result(session, self.teammate, self.team, position=sai_pos)
 
     def test_no_history_returns_default(self) -> None:
-        """No qualifying events → 10.0 default."""
-        result = _team_qualifying_means([self.team.id], self.target_event)
+        """No qualifying events in either season → 10.0 default."""
+        result = _team_qualifying_means([self.team.id], self.target_event, prev_year=2023)
         self.assertAlmostEqual(result[self.team.id], 10.0)
 
     def test_uses_only_last_3_events(self) -> None:
@@ -637,21 +557,25 @@ class TestTeamQualifyingMeanLast3(TestCase):
         self._make_qual_event(round_number=4, lec_pos=1, sai_pos=2)
         self._make_qual_event(round_number=5, lec_pos=1, sai_pos=2)
 
-        result = _team_qualifying_means([self.team.id], self.target_event)
+        result = _team_qualifying_means([self.team.id], self.target_event, prev_year=2023)
         self.assertAlmostEqual(result[self.team.id], 1.5)
 
-    def test_current_season_only(self) -> None:
-        """Qualifying data from a prior season must not be included."""
+    def test_prev_season_fallback_when_no_current_data(self) -> None:
+        """
+        When a team has no current-season qualifying data (e.g. round 1),
+        the function falls back to the previous season's last-3 events.
+        The prev_team has a different team_id, so this tests the no-data path
+        — no fallback data exists for self.team in 2023 → still returns 10.0.
+        """
         prev_season = make_season(2023)
         prev_team = make_team(prev_season, name="Ferrari")
         prev_driver = make_driver(prev_season, prev_team, code="LEC", driver_number=16)
-        # Terrible qualifying in 2023
         prev_event = make_event(prev_season, round_number=1, event_date=date(2023, 1, 1))
         prev_session = make_session(prev_event, session_type="Q")
         make_result(prev_session, prev_driver, prev_team, position=20)
 
-        # No 2024 qualifying history → should get default 10.0, not 20.0
-        result = _team_qualifying_means([self.team.id], self.target_event)
+        # self.team (2024 Ferrari) has no 2024 or 2023 history → default 10.0
+        result = _team_qualifying_means([self.team.id], self.target_event, prev_year=2023)
         self.assertAlmostEqual(result[self.team.id], 10.0)
 
 
@@ -686,17 +610,21 @@ class TestDriverChampionshipPosition(TestCase):
         self._make_race_with_points(self.driver, round_number=1, points=25)
         self._make_race_with_points(self.driver2, round_number=2, points=18)
 
-        result = _driver_championship_positions(["LEC", "HAM"], self.target_event)
+        result = _driver_championship_positions(["LEC", "HAM"], self.target_event, prev_year=2023)
         self.assertEqual(result["LEC"], 1)
         self.assertEqual(result["HAM"], 2)
 
-    def test_no_points_gets_default_20(self) -> None:
-        """Driver with no race results gets default rank of 20."""
-        result = _driver_championship_positions(["LEC"], self.target_event)
+    def test_no_points_in_either_season_gets_default_20(self) -> None:
+        """Driver with no race results in current or previous season gets rank 20."""
+        result = _driver_championship_positions(["LEC"], self.target_event, prev_year=2023)
         self.assertEqual(result["LEC"], 20)
 
-    def test_current_season_only(self) -> None:
-        """Points from a previous season do not count."""
+    def test_prev_season_fallback_at_season_start(self) -> None:
+        """
+        A driver with no current-season points falls back to their previous-season
+        championship rank. This is the core behaviour: a defending champion should
+        not default to rank 20 at the first race of the year.
+        """
         prev_season = make_season(2023)
         prev_team = make_team(prev_season, name="Ferrari")
         prev_driver = make_driver(prev_season, prev_team, code="LEC", driver_number=16)
@@ -704,9 +632,9 @@ class TestDriverChampionshipPosition(TestCase):
         prev_session = make_session(prev_event, session_type="R")
         make_result(prev_session, prev_driver, prev_team, position=1, points=25.0)
 
-        # LEC has points in 2023 but not 2024 → should get default 20
-        result = _driver_championship_positions(["LEC"], self.target_event)
-        self.assertEqual(result["LEC"], 20)
+        # LEC has no 2024 points yet → falls back to 2023 where they were rank 1
+        result = _driver_championship_positions(["LEC"], self.target_event, prev_year=2023)
+        self.assertEqual(result["LEC"], 1)
 
 
 # ---------------------------------------------------------------------------
@@ -735,8 +663,8 @@ class TestTeamRecentFinishMeanLast3(TestCase):
         make_result(session, self.teammate, self.team, position=sai_pos)
 
     def test_no_history_returns_default(self) -> None:
-        """No race events → 10.0 default."""
-        result = _team_recent_finish_means([self.team.id], self.target_event)
+        """No race events in either season → 10.0 default."""
+        result = _team_recent_finish_means([self.team.id], self.target_event, prev_year=2023)
         self.assertAlmostEqual(result[self.team.id], 10.0)
 
     def test_uses_only_last_3_events(self) -> None:
@@ -752,11 +680,15 @@ class TestTeamRecentFinishMeanLast3(TestCase):
         self._make_race_event(round_number=4, lec_pos=1, sai_pos=2)
         self._make_race_event(round_number=5, lec_pos=1, sai_pos=2)
 
-        result = _team_recent_finish_means([self.team.id], self.target_event)
+        result = _team_recent_finish_means([self.team.id], self.target_event, prev_year=2023)
         self.assertAlmostEqual(result[self.team.id], 1.5)
 
-    def test_current_season_only(self) -> None:
-        """Race results from a prior season must not be included."""
+    def test_prev_season_fallback_when_no_current_data(self) -> None:
+        """
+        prev_team has a different team_id, so no fallback data exists for self.team
+        in 2023 — result stays at 10.0 (the default when nothing is found).
+        This verifies the fallback query doesn't accidentally pull unrelated data.
+        """
         prev_season = make_season(2023)
         prev_team = make_team(prev_season, name="Ferrari")
         prev_driver = make_driver(prev_season, prev_team, code="LEC", driver_number=16)
@@ -764,5 +696,101 @@ class TestTeamRecentFinishMeanLast3(TestCase):
         prev_session = make_session(prev_event, session_type="R")
         make_result(prev_session, prev_driver, prev_team, position=20)
 
-        result = _team_recent_finish_means([self.team.id], self.target_event)
+        result = _team_recent_finish_means([self.team.id], self.target_event, prev_year=2023)
         self.assertAlmostEqual(result[self.team.id], 10.0)
+
+
+# ---------------------------------------------------------------------------
+# _driver_championship_vs_teammate_gap unit tests
+# ---------------------------------------------------------------------------
+
+
+class TestDriverChampionshipVsTeammateGap(TestCase):
+    """
+    Unit tests for _driver_championship_vs_teammate_gap.
+
+    driver_rows is a list of {id, code, team_id} dicts — the same format returned by
+    Driver.objects.filter(...).values("id", "code", "team_id").
+    """
+
+    def setUp(self) -> None:
+        self.season, self.team, self.driver, self.target_event = _setup_base()
+        self.teammate = make_driver(self.season, self.team, code="SAI", driver_number=55)
+        self.driver_rows = [
+            {"id": self.driver.id, "code": "LEC", "team_id": self.team.id},
+            {"id": self.teammate.id, "code": "SAI", "team_id": self.team.id},
+        ]
+
+    def _give_points(self, driver, round_number: int, points: float) -> None:
+        event = make_event(
+            self.season, round_number=round_number,
+            event_date=date(self.season.year, round_number, 1),
+        )
+        session = make_session(event, session_type="R")
+        make_result(session, driver, self.team, position=1, points=points)
+
+    def test_leader_has_negative_gap(self) -> None:
+        """LEC ranked 1st, SAI ranked 2nd → LEC gap = 1 - 2 = -1.0 (leads teammate)."""
+        self._give_points(self.driver, round_number=1, points=25.0)
+        self._give_points(self.teammate, round_number=2, points=18.0)
+
+        result = _driver_championship_vs_teammate_gap(
+            self.driver_rows, self.target_event, prev_year=2023
+        )
+        self.assertAlmostEqual(result[self.driver.id], -1.0)
+        self.assertAlmostEqual(result[self.teammate.id], 1.0)
+
+    def test_trailing_driver_has_positive_gap(self) -> None:
+        """SAI ranked 1st, LEC ranked 2nd → LEC gap = 2 - 1 = +1.0 (trails teammate)."""
+        self._give_points(self.teammate, round_number=1, points=25.0)
+        self._give_points(self.driver, round_number=2, points=18.0)
+
+        result = _driver_championship_vs_teammate_gap(
+            self.driver_rows, self.target_event, prev_year=2023
+        )
+        self.assertAlmostEqual(result[self.driver.id], 1.0)
+        self.assertAlmostEqual(result[self.teammate.id], -1.0)
+
+    def test_no_history_returns_zero(self) -> None:
+        """Both drivers default to rank 20; gap = 20 - 20 = 0.0."""
+        result = _driver_championship_vs_teammate_gap(
+            self.driver_rows, self.target_event, prev_year=2023
+        )
+        self.assertAlmostEqual(result[self.driver.id], 0.0)
+        self.assertAlmostEqual(result[self.teammate.id], 0.0)
+
+    def test_solo_driver_no_teammate_returns_zero(self) -> None:
+        """A driver with no teammate gets 0.0."""
+        solo_team = make_team(self.season, name="Solo Team")
+        solo_driver = make_driver(self.season, solo_team, code="ANT", driver_number=12)
+        solo_rows = [{"id": solo_driver.id, "code": "ANT", "team_id": solo_team.id}]
+
+        result = _driver_championship_vs_teammate_gap(
+            solo_rows, self.target_event, prev_year=2023
+        )
+        self.assertAlmostEqual(result[solo_driver.id], 0.0)
+
+    def test_prev_season_fallback(self) -> None:
+        """No current-season points → falls back to previous season's final ranks."""
+        prev_season = make_season(2023)
+        prev_team = make_team(prev_season, name="Ferrari")
+        prev_lec = make_driver(prev_season, prev_team, code="LEC", driver_number=16)
+        prev_sai = make_driver(prev_season, prev_team, code="SAI", driver_number=55)
+        prev_event = make_event(prev_season, round_number=1, event_date=date(2023, 1, 1))
+        prev_session = make_session(prev_event, session_type="R")
+        make_result(prev_session, prev_lec, prev_team, position=1, points=25.0)
+        make_result(prev_session, prev_sai, prev_team, position=2, points=18.0)
+
+        result = _driver_championship_vs_teammate_gap(
+            self.driver_rows, self.target_event, prev_year=2023
+        )
+        self.assertAlmostEqual(result[self.driver.id], -1.0)
+        self.assertAlmostEqual(result[self.teammate.id], 1.0)
+
+    def test_column_present_in_v3_output(self) -> None:
+        """Integration: new column present, old column gone."""
+        # Seed one past race so V2 produces rows (V3 inherits V2's driver list).
+        _past_race(self.season, self.team, self.driver, round_number=1, position=1)
+        df = V3FeatureStore().get_all_driver_features(self.target_event.id)
+        self.assertIn("driver_vs_teammate_championship_gap", df.columns)
+        self.assertNotIn("driver_championship_position", df.columns)

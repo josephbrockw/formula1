@@ -1,0 +1,117 @@
+── fs=v2 pred=v2 opt=v2 ──
+Backtest run #34 — 92 events, 87 predictions, min_train=5
+            Event                                Train  MAE Pos  MAE Pts  Trades   Lineup  Optimal
+--------------------------------------------------------------------------------------------------
+[  1/87]  Spanish Grand Prix                       5     4.55    10.32       0    104.0    228.0
+[  2/87]  Monaco Grand Prix                        6     3.73     8.79       2     87.0    159.0
+[  3/87]  Azerbaijan Grand Prix                    7     5.38    11.57       2     22.0    199.0
+[  4/87]  Canadian Grand Prix                      8     4.44     7.87       2    131.0    187.0
+[  5/87]  British Grand Prix                       9     4.75    11.69       0    110.0    238.0
+[  6/87]  Austrian Grand Prix                     10     4.94    13.21       2    111.0    300.0
+[  7/87]  French Grand Prix                       11     3.97    10.11       2     96.0    187.0
+[  8/87]  Hungarian Grand Prix                    12     3.19     9.67       2    116.0    217.0
+[  9/87]  Belgian Grand Prix                      13     4.00    11.96       0    178.0    231.0
+[ 10/87]  Dutch Grand Prix                        14     3.12     5.65       0    160.0    185.0
+[ 11/87]  Italian Grand Prix                      15     3.75    11.67       0     95.0    247.0
+[ 12/87]  Singapore Grand Prix                    16     4.88    10.42       0     92.0    146.0
+[ 13/87]  Japanese Grand Prix                     17     4.19    11.00       0     95.0    167.0
+[ 14/87]  United States Grand Prix                18     3.38    10.77       0    143.0    262.0
+[ 15/87]  Mexico City Grand Prix                  19     2.12     5.84       0    117.0    154.0
+[ 16/87]  São Paulo Grand Prix                    20     3.26    14.31       0    205.0    298.0
+[ 17/87]  Abu Dhabi Grand Prix                    21     3.51     8.48       0    148.0    194.0
+[ 18/87]  Bahrain Grand Prix                      22     5.06    10.02       0    154.0    270.0
+[ 19/87]  Saudi Arabian Grand Prix                23     3.95     7.28       2    206.0    226.0
+[ 20/87]  Australian Grand Prix                   24     5.25    10.26       2    193.0    244.0
+[ 21/87]  Azerbaijan Grand Prix                   25     2.88     9.23       0    219.0    270.0
+[ 22/87]  Miami Grand Prix                        26     2.91     5.14       2    226.0    218.0
+[ 23/87]  Monaco Grand Prix                       27     3.53     6.89       1    126.0    193.0
+[ 24/87]  Spanish Grand Prix                      28     2.73     7.49       2    249.0    236.0
+[ 25/87]  Canadian Grand Prix                     29     3.81     9.05       0    198.0    229.0
+[ 26/87]  Austrian Grand Prix                     30     3.32    10.54       0    280.0    310.0
+[ 27/87]  British Grand Prix                      31     3.35     6.98       0    162.0    231.0
+[ 28/87]  Hungarian Grand Prix                    32     3.08     6.63       0    180.0    247.0
+[ 29/87]  Belgian Grand Prix                      33     4.41    10.40       2    162.0    281.0
+[ 30/87]  Dutch Grand Prix                        34     3.71     8.82       0    160.0    241.0
+[ 31/87]  Italian Grand Prix                      35     3.39     6.13       0    163.0    217.0
+[ 32/87]  Singapore Grand Prix                    36     4.03     8.69       0     80.0    217.0
+[ 33/87]  Japanese Grand Prix                     37     3.81     6.67       0     99.0    244.0
+[ 34/87]  Qatar Grand Prix                        38     3.85    18.77       0    359.0    500.0
+[ 35/87]  United States Grand Prix                39     4.93    11.85       0    225.0    304.0
+[ 36/87]  Mexico City Grand Prix                  40     3.19     9.33       0     29.0    211.0
+[ 37/87]  São Paulo Grand Prix                    41     4.50    12.39       0    238.0    213.0
+[ 38/87]  Las Vegas Grand Prix                    42     3.47    10.20       0    254.0    211.0
+[ 39/87]  Abu Dhabi Grand Prix                    43     3.41     7.17       0    259.0    213.0
+[ 40/87]  Bahrain Grand Prix                      44     3.74     7.18       0    154.0    215.0
+[ 41/87]  Saudi Arabian Grand Prix                45     3.38     7.04       0    132.0    188.0
+[ 42/87]  Australian Grand Prix                   46     4.49    11.23       0    146.0    267.0
+[ 43/87]  Japanese Grand Prix                     47     3.26     6.82       0    137.0    191.0
+[ 44/87]  Chinese Grand Prix                      48     3.04    10.70       0    234.0    294.0
+[ 45/87]  Miami Grand Prix                        49     2.93     7.35       0    188.0    258.0
+[ 46/87]  Emilia Romagna Grand Prix               50     2.21     5.04       0    128.0    190.0
+[ 47/87]  Monaco Grand Prix                       51     3.65     8.08       0     81.0    155.0
+[ 48/87]  Canadian Grand Prix                     52     4.86    10.09       0     84.0    245.0
+[ 49/87]  Spanish Grand Prix                      53     2.54     4.75       0    193.0    186.0
+[ 50/87]  Austrian Grand Prix                     54     3.92    11.57       0    119.0    295.0
+[ 51/87]  British Grand Prix                      55     4.21     6.96       0    114.0    174.0
+[ 52/87]  Hungarian Grand Prix                    56     2.54     3.79       0    192.0    205.0
+[ 53/87]  Belgian Grand Prix                      57     3.29     6.82       0    158.0    213.0
+[ 54/87]  Dutch Grand Prix                        58     2.98     5.16       0    162.0    184.0
+[ 55/87]  Italian Grand Prix                      59     2.60     5.57       0    220.0    224.0
+[ 56/87]  Azerbaijan Grand Prix                   60     3.66     8.53       0    194.0    221.0
+[ 57/87]  Singapore Grand Prix                    61     2.62     5.11       0    150.0    160.0
+[ 58/87]  United States Grand Prix                62     2.85     7.45       0    168.0    214.0
+[ 59/87]  Mexico City Grand Prix                  63     3.91     8.02       0    162.0    197.0
+[ 60/87]  São Paulo Grand Prix                    64     4.82    11.15       0    135.0    290.0
+[ 61/87]  Las Vegas Grand Prix                    65     3.35     7.98       0    246.0    248.0
+[ 62/87]  Qatar Grand Prix                        66     4.09     7.63       0    133.0    184.0
+[ 63/87]  Abu Dhabi Grand Prix                    67     3.30     8.31       0    166.0    224.0
+[ 64/87]  Australian Grand Prix                   68     4.43    11.81       0     71.0    211.0
+[ 65/87]  Chinese Grand Prix                      69     4.29    11.76       0    148.0    284.0
+[ 66/87]  Japanese Grand Prix                     70     3.42     6.73       1    137.0    180.0
+[ 67/87]  Bahrain Grand Prix                      71     3.30    10.06       0    172.0    250.0
+[ 68/87]  Saudi Arabian Grand Prix                72     2.54     5.22       0    159.0    160.0
+[ 69/87]  Miami Grand Prix                        73     2.17    10.40       0    147.0    255.0
+[ 70/87]  Emilia Romagna Grand Prix               74     2.81     6.60       0    160.0    211.0
+[ 71/87]  Monaco Grand Prix                       75     3.37     7.68       0    118.0    215.0
+[ 72/87]  Spanish Grand Prix                      76     3.77     9.01       0    189.0    262.0
+[ 73/87]  Canadian Grand Prix                     77     4.15     8.38       0    188.0    246.0
+[ 74/87]  Austrian Grand Prix                     78     3.93     9.24       0    159.0    259.0
+[ 75/87]  British Grand Prix                      79     4.35    10.12       0    166.0    215.0
+[ 76/87]  Belgian Grand Prix                      80     3.63     6.49       0    161.0    149.0
+[ 77/87]  Hungarian Grand Prix                    81     3.35     5.10       0    173.0    230.0
+[ 78/87]  Dutch Grand Prix                        82     5.25    11.78       0    208.0    245.0
+[ 79/87]  Italian Grand Prix                      83     2.62     6.59       0    119.0    208.0
+[ 80/87]  Azerbaijan Grand Prix                   84     4.59    10.48       0     79.0    172.0
+[ 81/87]  Singapore Grand Prix                    85     3.25     6.13       0    162.0    177.0
+[ 82/87]  United States Grand Prix                86     3.16    10.00       0    147.0    220.0
+[ 83/87]  Mexico City Grand Prix                  87     3.52     6.34       0    153.0    164.0
+[ 84/87]  São Paulo Grand Prix                    88     4.38    15.14       0    259.0    296.0
+[ 85/87]  Las Vegas Grand Prix                    89     4.39    11.77       0     60.0    196.0
+[ 86/87]  Qatar Grand Prix                        90     3.52     9.06       0    205.0    162.0
+[ 87/87]  Abu Dhabi Grand Prix                    91     3.61     7.16       0    223.0    209.0
+
+Races evaluated:        87
+Mean MAE (position):    3.68
+Mean MAE (fantasy pts): 8.83
+Total lineup points:    13790.0
+Total optimal points:   19523.0
+Points left on table:   5733.0
+
+Season  Races  MAE Pos  MAE Pts    Lineup    Oracle     Left
+--------------------------------------------------------------
+  2022     17     3.95    10.20      2010      3599     1589
+  2023     22     3.75     9.09      4221      5526     1305
+  2024     24     3.43     7.60      3796      5222     1426
+  2025     24     3.66     8.88      3763      5176     1413
+
+Top features (fantasy pts model, final trained model):
+  team_constructor_standing_rank                0.2719
+  qualifying_position_mean_last3                0.2134
+  position_mean_last5                           0.0534
+  team_position_mean_last5                      0.0445
+  is_sprint_weekend                             0.0372
+  fantasy_points_mean_last3                     0.0348
+  practice_avg_best_5_rank                      0.0336
+  weather_track_temp_mean                       0.0312
+  position_std_last5                            0.0309
+  practice_best_lap_rank                        0.0301

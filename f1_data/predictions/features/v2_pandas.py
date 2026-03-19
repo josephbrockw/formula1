@@ -5,7 +5,7 @@ from collections import defaultdict
 import pandas as pd
 from django.db.models import Max, Sum
 
-from core.models import Driver, Event, SessionResult, WeatherSample
+from core.models import Driver, Event, SessionResult, Team, WeatherSample
 from predictions.features.v1_pandas import V1FeatureStore
 from predictions.models import FantasyDriverPrice, FantasyDriverScore
 
@@ -175,6 +175,10 @@ def _downforce_ratings(event: Event) -> dict[int, tuple[float, float]]:
     Uses current + previous season race results, before this event.
     Splits circuits into low/high corner-density buckets using the
     median density of all results (no hardcoded threshold).
+
+    Groups results by team__code (stable across renames) so that e.g.
+    Renault results from 2020 are merged with Alpine results from 2021.
+    Falls back to str(team_id) as grouping key for teams without a code.
     """
     current_year = event.season.year
     results = list(
@@ -187,6 +191,7 @@ def _downforce_ratings(event: Event) -> dict[int, tuple[float, float]]:
             session__event__circuit__total_corners__isnull=False,
         ).values(
             "team_id",
+            "team__code",
             "position",
             "session__event__circuit__circuit_length",
             "session__event__circuit__total_corners",
@@ -202,6 +207,7 @@ def _downforce_ratings(event: Event) -> dict[int, tuple[float, float]]:
             continue
         enriched.append(
             {
+                "team_key": r["team__code"] or str(r["team_id"]),
                 "team_id": r["team_id"],
                 "position": float(r["position"]),
                 "density": r["session__event__circuit__total_corners"] / length,
@@ -216,18 +222,31 @@ def _downforce_ratings(event: Event) -> dict[int, tuple[float, float]]:
         (densities[n // 2 - 1] + densities[n // 2]) / 2 if n % 2 == 0 else densities[n // 2]
     )
 
-    low_pos: dict[int, list[float]] = defaultdict(list)
-    high_pos: dict[int, list[float]] = defaultdict(list)
+    low_pos: dict[str, list[float]] = defaultdict(list)
+    high_pos: dict[str, list[float]] = defaultdict(list)
     for r in enriched:
         bucket = low_pos if r["density"] < median else high_pos
-        bucket[r["team_id"]].append(r["position"])
+        bucket[r["team_key"]].append(r["position"])
 
-    all_team_ids = {r["team_id"] for r in enriched}
+    # Map stable codes back to the current-season team_id so callers can look up ratings.
+    current_code_to_id = {
+        code: tid for tid, code in
+        Team.objects.filter(season=event.season, code__gt="").values_list("id", "code")
+    }
+    current_team_ids = set(Team.objects.filter(season=event.season).values_list("id", flat=True))
+
+    all_team_keys = {r["team_key"] for r in enriched}
     ratings: dict[int, tuple[float, float]] = {}
-    for tid in all_team_ids:
-        low = sum(low_pos[tid]) / len(low_pos[tid]) if low_pos[tid] else 10.0
-        high = sum(high_pos[tid]) / len(high_pos[tid]) if high_pos[tid] else 10.0
-        ratings[tid] = (low, high)
+    for key in all_team_keys:
+        low = sum(low_pos[key]) / len(low_pos[key]) if low_pos[key] else 10.0
+        high = sum(high_pos[key]) / len(high_pos[key]) if high_pos[key] else 10.0
+        if key in current_code_to_id:
+            current_id = current_code_to_id[key]
+        elif key.isdigit() and int(key) in current_team_ids:
+            current_id = int(key)
+        else:
+            continue
+        ratings[current_id] = (low, high)
     return ratings
 
 
