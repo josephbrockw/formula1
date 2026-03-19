@@ -15,7 +15,7 @@ TARGET_POSITION = "finishing_position"
 TARGET_POINTS = "fantasy_points"
 
 # Columns that are not features — stripped before training/predicting
-_NON_FEATURE_COLS = {"driver_id"}
+_NON_FEATURE_COLS = {"driver_id", "event_index"}
 
 # Base race points by finishing position (no bonuses).
 # Used as a fallback when FantasyDriverScore data hasn't been imported yet.
@@ -144,7 +144,7 @@ def build_training_dataset(
     X_rows: list[dict] = []
     y_rows: list[dict] = []
 
-    for event in events:
+    for i, event in enumerate(events):
         X_event = feature_store.get_all_driver_features(event.id)
         if X_event.empty:
             continue
@@ -172,7 +172,9 @@ def build_training_dataset(
 
             fantasy_pts = fantasy_totals.get(driver_id, _estimate_fantasy_points(int(position)))
 
-            X_rows.append(row.to_dict())
+            row_dict = row.to_dict()
+            row_dict["event_index"] = i
+            X_rows.append(row_dict)
             y_rows.append(
                 {
                     TARGET_POSITION: float(position),

@@ -1,14 +1,21 @@
 # F1 Fantasy System — Usage Guide
 
-How to operate this system week-to-week during a live season. All commands run from `f1_data/`.
+All commands run from `f1_data/`.
+
+This guide is split into two flows:
+
+- **Race operations** — everything you do during a live season as a user of the system (setup, weekly workflow).
+- **Model research** — everything you do when evaluating or improving the prediction model (backtesting, hyperparameter tuning).
 
 ---
 
-## New Season Initialisation
+## Race Operations
+
+### New Season Initialisation
 
 Run once before the season starts (or as soon as the new driver grid is confirmed).
 
-### 1. Sync the season schedule
+#### 1. Sync the season schedule
 
 ```bash
 python manage.py collect_data --year YYYY
@@ -21,7 +28,7 @@ Check how many events were created:
 python manage.py shell -c "from core.models import Event; print(Event.objects.filter(season__year=YYYY).count())"
 ```
 
-### 2. Seed driver and team reference data
+#### 2. Seed driver and team reference data
 
 FastF1 only creates driver/team records when race results are available. Pre-season, you need to seed them manually from a roster file.
 
@@ -58,7 +65,7 @@ print('Drivers:', list(Driver.objects.filter(season__year=YYYY).values_list('cod
 "
 ```
 
-### 3. Check FastF1 team names after the first race
+#### 3. Check FastF1 team names after the first race
 
 After the first race, run `collect_data` again (step 5 in the weekly workflow below). Check whether FastF1 used the same team names you seeded:
 
@@ -74,7 +81,7 @@ python manage.py seed_season_reference --year YYYY --roster ../data/YYYY_roster.
 
 This renames the existing team row in-place — all driver and price foreign keys stay valid, no manual cleanup needed.
 
-### 4. Set starting prices
+#### 4. Set starting prices
 
 Create `data/starting_prices/YYYY_drivers.csv` and `data/starting_prices/YYYY_constructors.csv` with the opening prices from the fantasy game:
 
@@ -113,9 +120,9 @@ print(FantasyDriverPrice.objects.filter(event__season__year=YYYY).count())
 
 ---
 
-## Weekly Race Workflow
+### Weekly Race Workflow
 
-### Before the race (after qualifying locks)
+#### Before the race (after qualifying locks)
 
 ```bash
 # 1. Get ML recommendation for this round
@@ -126,7 +133,7 @@ This trains on all available data, generates predictions, and recommends a lineu
 
 ---
 
-### After the race
+#### After the race
 
 Run these steps in order.
 
@@ -157,7 +164,7 @@ python manage.py next_race --year YYYY --round N+1
 python manage.py score_lineup --year YYYY --round N
 ```
 
-#### Chrome extension CSV file naming
+##### Chrome extension CSV file naming
 
 The import command detects file type by filename:
 
@@ -170,35 +177,68 @@ The import command detects file type by filename:
 
 ---
 
-## Backtest (evaluate model accuracy)
+## Model Research
 
-Run a walk-forward backtest over historical seasons to check how the model would have performed:
+### Backtesting
+
+Walk-forward backtesting re-runs the full train→predict→optimize loop on historical data. For each race, it trains on all prior races, predicts the current race, and selects a lineup — exactly as the system would have operated live.
 
 ```bash
-python manage.py backtest --seasons 2024 2025 --min-train 5
+python manage.py backtest --seasons 2022 2023 2024 2025 --min-train 5
 ```
 
 Options:
-- `--feature-store v1|v2` (default: v2)
-- `--predictor v1|v2` (default: v2)
+- `--feature-store v1|v2|v3` (default: v2) — one or more versions to sweep
+- `--predictor v1|v2|v3` (default: v2) — one or more versions to sweep
 - `--optimizer v1|v2|v3` (default: v2)
+- `--min-train N` (default: 5) — minimum races to train on before making the first prediction
 - `--budget 100` (default: 100)
+- `--verbose` — print each race's selected lineup and cost
 
-Output includes per-race MAE, actual lineup points, oracle optimal points, and number of transfers made.
+Output includes per-race MAE (position and fantasy points), actual lineup points, oracle optimal points, and number of transfers made.
 
-### Comparing optimizers
+#### Comparing specific versions
 
-Run all three optimizer versions (v1 greedy, v2 greedy+upgrade, v3 ILP) with fixed fs=v2 and pred=v2, then get a Slack summary comparing them side-by-side:
+Pass multiple values to `--feature-store` or `--predictor` to run all their combinations in one go:
 
 ```bash
-python manage.py backtest --seasons 2024 2025 --all-optimizers
+# Compare v2 and v3 predictor, holding feature-store and optimizer fixed
+python manage.py backtest --feature-store v3 --predictor v2 v3 --optimizer v2 --seasons 2022 2023 2024 2025
 ```
 
-Run all 8 combinations of feature-store × predictor (v1/v2 each) × optimizer (v1/v2 only — v3 excluded to keep the sweep at 8):
+#### Sweeps
 
 ```bash
+# All optimizer versions (v1/v2/v3) with fixed fs=v2, pred=v2
+python manage.py backtest --seasons 2024 2025 --all-optimizers
+
+# All combinations across all registered versions of every component
 python manage.py backtest --seasons 2024 2025 --all
 ```
+
+Both sweep flags send a Slack summary when complete.
+
+### Hyperparameter tuning
+
+Random search over XGBoost hyperparameter space using TimeSeriesSplit cross-validation. Searches ~972 combinations; `--n-iter` controls how many are sampled. Run this when considering changes to the XGBoost config in V2/V3 predictors.
+
+```bash
+python manage.py tune_hyperparams \
+  --seasons 2022 2023 2024 2025 \
+  --feature-store v3 \
+  --n-iter 50 \
+  --top-n 10 \
+  --n-splits 4
+```
+
+Options:
+- `--seasons` — season year(s) to build the training dataset from
+- `--feature-store v1|v2|v3` (default: v3) — which feature set to use
+- `--n-iter` (default: 50) — number of random parameter combinations to evaluate
+- `--top-n` (default: 10) — how many top results to print in the ranked table
+- `--n-splits` (default: 4) — number of cross-validation folds
+
+Output is a ranked table of parameter combinations with their mean cross-validation MAE, alongside the V2 defaults as a baseline.
 
 ---
 

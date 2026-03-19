@@ -56,28 +56,59 @@ FastF1 API
 
 ### Management commands
 
-#### `collect_data` — Collect session data from FastF1
+#### Data collection (`core/`)
+
+| Command | What it does |
+|---------|-------------|
+| `collect_data` | Pull session data (laps, results, weather) from the FastF1 API |
+| `collection_status` | Print a coverage table showing which sessions have been collected |
+| `seed_season_reference` | Seed driver and team reference records from a roster JSON file |
 
 ```bash
 python manage.py collect_data                          # all seasons (2018–present)
 python manage.py collect_data --year 2025              # one season
 python manage.py collect_data --year 2025 --round 5   # one round
-python manage.py collect_data --retry-failed           # also attempt previously failed sessions
+python manage.py collect_data --retry-failed           # also retry previously failed sessions
 python manage.py collect_data --force                  # re-collect completed sessions too
-```
 
-By default, completed and failed sessions are skipped. Use `--retry-failed` to retry failures without touching completed sessions. Use `--force` to recollect everything.
-
-Rate limits are handled automatically with exponential backoff (1 min → 5 min → 60 min). A Slack notification is sent on completion and when rate-limited.
-
-#### `collection_status` — Check data coverage
-
-```bash
 python manage.py collection_status                     # summary table across all seasons
 python manage.py collection_status --year 2025         # per-session breakdown for one season
 python manage.py collection_status --gaps              # show only incomplete sessions
-python manage.py collection_status --year 2025 --gaps  # gaps for one season
 ```
+
+Rate limits are handled automatically with exponential backoff (1 min → 5 min → 60 min). A Slack notification is sent on completion and when rate-limited.
+
+#### Fantasy data (`predictions/`)
+
+| Command | What it does |
+|---------|-------------|
+| `import_fantasy_csv` | Import Chrome extension CSVs: actual fantasy scores and market prices |
+| `compute_fantasy_points` | Reconstruct approximate fantasy scores from FastF1 data (no Driver of the Day / pit stop bonus). Use for historical seasons where you don't have Chrome extension data. |
+| `compute_fantasy_prices` | Simulate the F1 Fantasy price formula forward across all events in a season |
+
+#### Race week operations (`predictions/`)
+
+| Command | What it does |
+|---------|-------------|
+| `next_race` | **Main weekly command.** Trains on all available data, generates predictions, recommends lineup changes. Also auto-scores the previous round if actual score data is available. |
+| `record_my_lineup` | Record the lineup you actually submitted for a race |
+| `score_lineup` | Score a past lineup against actual results (useful if you want to score without running `next_race`) |
+
+#### Model research (`predictions/`)
+
+| Command | What it does |
+|---------|-------------|
+| `backtest` | Walk-forward backtest over historical seasons; prints per-race MAE and lineup quality |
+| `tune_hyperparams` | Random search over XGBoost hyperparameters using TimeSeriesSplit CV |
+
+#### Lower-level / superseded (`predictions/`)
+
+These commands are thin building blocks that `next_race` now wraps end-to-end. They remain useful for debugging specific steps in isolation.
+
+| Command | Superseded by |
+|---------|--------------|
+| `predict_race` | `next_race` (trains + predicts in one step) |
+| `optimize_lineup` | `next_race` (predicts + optimizes in one step) |
 
 ### Running tests
 
@@ -86,6 +117,63 @@ cd f1_data
 python manage.py test                                          # full suite
 python manage.py test core.tests.test_gap_detector            # one module
 ```
+
+---
+
+## ML Pipeline
+
+The prediction system is built from three independent, versioned components that are combined at runtime. Think of them as a pipeline: raw data → **feature store** → **predictor** → **optimizer** → lineup.
+
+The active version of each is configured in `f1_data/settings.py` (`ML_FEATURE_STORE`, `ML_PREDICTOR`, `ML_OPTIMIZER`) and read by `next_race`. Backtesting accepts any combination via CLI flags so you can compare versions side-by-side.
+
+---
+
+### Feature Stores
+
+Responsible for querying raw race data and computing a flat feature vector for each driver before a race. All features must be available before lineup lock (no current-race qualifying position).
+
+| Version | Class | Features | Key changes |
+|---------|-------|----------|-------------|
+| **v1** | `V1FeatureStore` | 15 | MVP. Rolling race form (last 3/5/10), recent qualifying position, circuit history, team form, fantasy points history, practice pace, static circuit info. |
+| **v2** | `V2FeatureStore` | 25 | +10 vs v1. Adds practice-session weather (rainfall flag, track temp), car-circuit fit (constructor standing, downforce-split ratings), driver vs teammate gap, pick percentage, price change direction, fantasy points trend. |
+| **v3** | `V3FeatureStore` | 29 | +9 richer features, –6 zero-importance features vs v2. Replaces the binary rainfall flag with a continuous rain fraction. Adds wet-weather driver specialisation, driver experience, circuit historical rain rate, temperature deviation from circuit mean, team qualifying form, driver vs teammate championship gap. Drops circuit geometry and downforce-split ratings (zero walk-forward importance). |
+
+---
+
+### Predictors
+
+Responsible for training XGBoost models on historical (features, outcomes) pairs and generating per-driver predictions for an upcoming race.
+
+| Version | Class | What it predicts | Key changes |
+|---------|-------|-----------------|-------------|
+| **v1** | `XGBoostPredictor` | Position (MSE), points (MSE) | MVP. Single model per target. Confidence bounds are ±1 std dev of training residuals — approximate. |
+| **v2** | `XGBoostPredictorV2` | Position (MSE), points (MSE), points q10, points q90 | 4-model ensemble. Replaces residual bounds with proper quantile regression (`reg:quantileerror`). Wide q10/q90 gap = high-variance driver; narrow = consistent. |
+| **v3** | `XGBoostPredictorV3` | Same as v2 | V2 + exponential decay sample weights. Races `n` events ago get weight `exp(−λn)`, where `λ = ln(2) / half_life`. Default `half_life = 10` ≈ half a season. Configured via `ML_PREDICTOR_V3_HALF_LIFE`. |
+
+---
+
+### Optimizers
+
+Responsible for selecting a valid lineup (5 drivers + 2 constructors, 1 DRS boost driver) under the $100M budget constraint, using the predictor's point estimates.
+
+| Version | Class | Strategy | Key changes |
+|---------|-------|---------|-------------|
+| **v1** | `GreedyOptimizer` | Greedy knapsack | Sorts all drivers and constructors by points-per-dollar, picks greedily until budget is exhausted. Simple and fast, but ignores leftover budget. |
+| **v2** | `GreedyOptimizerV2` | Greedy + upgrade pass | After greedy selection, iterates through unpicked players and swaps in any higher-scoring option that fits in the remaining budget. Repeats until no improvement is possible. |
+| **v3** | `ILPOptimizer` | Integer Linear Programming | Provably finds the globally optimal lineup. Formulates selection as a binary ILP and solves it exactly. Handles transfer limits as a hard constraint when a current lineup is provided. |
+
+---
+
+### Current production configuration
+
+```python
+# f1_data/f1_data/settings.py
+ML_FEATURE_STORE = "v2"   # used by next_race
+ML_PREDICTOR     = "v2"   # used by next_race
+ML_OPTIMIZER     = "v2"   # used by next_race
+```
+
+> **Note:** `next_race` currently supports feature stores v1/v2 and predictors v1/v2. The v3 feature store and v3 predictor are available for backtesting but not yet wired into `next_race`.
 
 ---
 

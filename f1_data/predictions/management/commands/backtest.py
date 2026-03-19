@@ -17,6 +17,7 @@ from predictions.optimizers.greedy_v2 import GreedyOptimizerV2
 from predictions.optimizers.ilp_v3 import ILPOptimizer
 from predictions.predictors.xgboost_v1 import XGBoostPredictor
 from predictions.predictors.xgboost_v2 import XGBoostPredictorV2
+from predictions.predictors.xgboost_v3 import XGBoostPredictorV3
 
 _VERSIONS = settings.ML_FEATURE_STORE_VERSIONS
 _OPT_VERSIONS = settings.ML_OPTIMIZER_VERSIONS
@@ -156,7 +157,12 @@ class Command(BaseCommand):
             feature_store = V2FeatureStore()
         else:
             feature_store = V1FeatureStore()
-        predictor = XGBoostPredictorV2() if pred_version == "v2" else XGBoostPredictor()
+        if pred_version == "v3":
+            predictor = XGBoostPredictorV3()
+        elif pred_version == "v2":
+            predictor = XGBoostPredictorV2()
+        else:
+            predictor = XGBoostPredictor()
         if opt_version == "v3":
             optimizer = ILPOptimizer()
         elif opt_version == "v2":

@@ -1,0 +1,91 @@
+(venv) joes-mac-mini:f1_data joewilkinson$ python manage.py backtest --feature-store v3 --predictor v2 --optimizer v2 --seasons 2022 2023 2024 2025
+Backtest run #38 — 92 events, 87 predictions, min_train=5
+
+Races evaluated:        87
+Mean MAE (position):    3.53
+Mean MAE (fantasy pts): 8.38
+Total lineup points:    13766.0
+Total optimal points:   19523.0
+Points left on table:   5757.0
+
+Season  Races  MAE Pos  MAE Pts    Lineup    Oracle     Left
+--------------------------------------------------------------
+  2022     17     3.63     9.33      2423      3599     1176
+  2023     22     3.56     8.65      4452      5526     1074
+  2024     24     3.36     7.26      3425      5222     1797
+  2025     24     3.62     8.57      3466      5176     1710
+
+Feature importances (fantasy pts model, final trained model):
+  qualifying_position_mean_last3                0.1870
+  team_qualifying_position_mean_last3           0.1351
+  position_mean_last3                           0.1065
+  team_constructor_standing_rank                0.0848
+  team_position_mean_last5                      0.0511
+  position_mean_last5                           0.0399
+  team_recent_finish_mean_last3                 0.0389
+  practice_avg_best_5_rank                      0.0317
+  fantasy_points_mean_last3                     0.0308
+  weather_air_temp_mean                         0.0268
+  driver_races                                  0.0239
+  circuit_position_mean_last3                   0.0228
+  position_std_last5                            0.0212
+  practice_best_lap_rank                        0.0212
+  driver_wet_vs_dry_position_delta              0.0211
+  track_temp_deviation_from_circuit_mean        0.0209
+  circuit_historical_rain_rate                  0.0194
+  positions_gained_mean_last5                   0.0181
+  driver_vs_teammate_gap_last5                  0.0168
+  fantasy_points_trend_last5                    0.0162
+  is_sprint_weekend                             0.0152
+  weather_practice_rain_fraction                0.0148
+  weather_track_temp_mean                       0.0129
+  driver_wet_session_count                      0.0126
+  round_number                                  0.0098
+  dnf_rate_last10                               0.0000
+  price_change_last_race                        0.0000
+  driver_vs_teammate_championship_gap           0.0000
+
+
+# More Pruning
+
+Races evaluated:        87
+Mean MAE (position):    3.56
+Mean MAE (fantasy pts): 8.43
+Total lineup points:    14037.0
+Total optimal points:   19523.0
+Points left on table:   5486.0
+
+Season  Races  MAE Pos  MAE Pts    Lineup    Oracle     Left
+--------------------------------------------------------------
+  2022     17     3.71     9.39      2147      3599     1452
+  2023     22     3.63     8.65      4439      5526     1087
+  2024     24     3.35     7.36      3307      5222     1915
+  2025     24     3.59     8.63      4144      5176     1032
+
+Feature importances (fantasy pts model, final trained model):
+  qualifying_position_mean_last3                0.1994
+  position_mean_last3                           0.1171
+  team_constructor_standing_rank                0.1072
+  position_mean_last5                           0.1006
+  team_position_mean_last5                      0.0505
+  practice_avg_best_5_rank                      0.0358
+  fantasy_points_mean_last3                     0.0334
+  fantasy_points_trend_last5                    0.0285
+  circuit_position_mean_last3                   0.0279
+  track_temp_deviation_from_circuit_mean        0.0241
+  driver_races                                  0.0229
+  weather_air_temp_mean                         0.0227
+  team_qualifying_position_mean_last3           0.0224
+  weather_practice_rain_fraction                0.0222
+  position_std_last5                            0.0214
+  team_recent_finish_mean_last3                 0.0201
+  circuit_historical_rain_rate                  0.0188
+  driver_wet_vs_dry_position_delta              0.0171
+  practice_best_lap_rank                        0.0163
+  is_sprint_weekend                             0.0160
+  positions_gained_mean_last5                   0.0155
+  driver_vs_teammate_gap_last5                  0.0149
+  weather_track_temp_mean                       0.0129
+  driver_wet_session_count                      0.0122
+  round_number                                  0.0120
+  driver_vs_teammate_championship_gap           0.0083
