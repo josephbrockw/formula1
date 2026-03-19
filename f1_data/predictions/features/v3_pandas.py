@@ -88,6 +88,9 @@ class V3FeatureStore:
             "team_low_df_avg_pos",
             "team_high_df_avg_pos",
             "pick_percentage",
+            "dnf_rate_last10",
+            "price_change_last_race",
+            "driver_vs_teammate_championship_gap",
         ]
         df = df.drop(columns=[c for c in _zero_importance if c in df.columns])
 
