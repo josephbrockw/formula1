@@ -16,7 +16,8 @@ from predictions.features.v2_pandas import V2FeatureStore
 
 class V3FeatureStore:
     """
-    Extends V2FeatureStore with 9 richer features (35 total).
+    Extends V2FeatureStore with 9 richer features, then drops 6 zero-importance
+    features identified via walk-forward feature importance analysis (29 total).
 
     Changes vs V2:
       - weather_practice_rainfall (binary) is REPLACED by weather_practice_rain_fraction
@@ -71,6 +72,24 @@ class V3FeatureStore:
         # gives the model a graded signal (0.05 = light drizzle, 0.9 = full wet).
         if "weather_practice_rainfall" in df.columns:
             df = df.drop(columns=["weather_practice_rainfall"])
+
+        # Drop zero-importance features identified via walk-forward analysis.
+        # Removing them reduces model noise and overfitting on the small dataset
+        # (~100–800 rows). V1/V2 feature stores are left intact for independent use.
+        #   circuit_length, total_corners — raw circuit geometry; subsumed by
+        #     circuit_corner_density and circuit-specific history features.
+        #   circuit_corner_density, team_low_df_avg_pos, team_high_df_avg_pos —
+        #     downforce-split ratings showed no predictive lift in walk-forward folds.
+        #   pick_percentage — ownership data has leakage risk and near-zero importance.
+        _zero_importance = [
+            "circuit_length",
+            "total_corners",
+            "circuit_corner_density",
+            "team_low_df_avg_pos",
+            "team_high_df_avg_pos",
+            "pick_percentage",
+        ]
+        df = df.drop(columns=[c for c in _zero_importance if c in df.columns])
 
         event = Event.objects.select_related("circuit", "season").get(pk=event_id)
         prev_year = event.season.year - 1

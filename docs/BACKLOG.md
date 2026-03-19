@@ -122,4 +122,6 @@ Steps: (1) map circuits to lat/lon coordinates, (2) one-off backfill management 
 
 ## Ideas
 
+- **Circuit-type models:** Separate models per circuit type (street, high-speed, mixed). Currently a single model must compromise across very different track dynamics. Street circuits (Monaco, Singapore, Baku) heavily favour positioning and reliability; high-speed tracks (Monza, Spa) reward raw pace. A model trained on all circuits averages these signals, diluting both.
+
 ---
