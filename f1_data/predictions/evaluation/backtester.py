@@ -123,6 +123,7 @@ class Backtester:
         budget: float = 100.0,
         price_sensitivity: float | None = None,
         on_race_done: Callable[[RaceBacktestResult, int, int], None] | None = None,
+        oracle_cache: dict[int, float | None] | None = None,
     ) -> BacktestResult:
         """
         Walk-forward evaluation over a list of chronologically ordered events.
@@ -162,8 +163,10 @@ class Backtester:
                 "free_transfers": 2,
                 "transfer_penalty": 10.0,
             }
+            precomputed = oracle_cache.get(test_event.id) if oracle_cache is not None else None
             lineup_predicted, lineup_actual, optimal, new_lineup = _optimize_and_score(
-                test_event, adjusted, actuals, optimizer, budget, constraints
+                test_event, adjusted, actuals, optimizer, budget, constraints,
+                precomputed_oracle=precomputed,
             )
             n_transfers = _count_transfers(current_lineup, new_lineup)
             if lineup_actual is not None:
@@ -256,6 +259,7 @@ def _optimize_and_score(
     optimizer: LineupOptimizer,
     budget: float,
     constraints: dict | None = None,
+    precomputed_oracle: float | None = None,
 ) -> tuple[float | None, float | None, float | None, Lineup | None]:
     """
     Return (lineup_predicted_pts, lineup_actual_pts, optimal_actual_pts, lineup).
@@ -285,8 +289,9 @@ def _optimize_and_score(
     )
     lineup_actual = _score_lineup(lineup, actual_driver_pts, actual_constructor_pts)
     # Oracle optimal is always unconstrained — it's the ceiling with perfect knowledge.
-    optimal = _optimal_score(
-        driver_preds_df, constructor_preds_df, actual_driver_pts, actual_constructor_pts, optimizer, budget
+    # Use precomputed value if available (shared across multi-combo runs); otherwise compute inline.
+    optimal = precomputed_oracle if precomputed_oracle is not None else _optimal_score(
+        driver_preds_df, constructor_preds_df, actual_driver_pts, actual_constructor_pts, budget
     )
     return lineup.predicted_points, lineup_actual, optimal, lineup
 
@@ -348,20 +353,83 @@ def _score_lineup(
     return driver_total + constructor_total + drs_bonus
 
 
+def compute_oracle_cache(events: list[Event], budget: float) -> dict[int, float | None]:
+    """
+    Pre-compute ILP-optimal oracle scores for a list of events.
+
+    Returns {event_id: score}, with None for events where price data is absent.
+
+    Call this once before a multi-combo backtest loop and pass the result to each
+    Backtester.run() call via oracle_cache=. This avoids re-running ILP N times
+    per race when N optimizer/predictor combos share the same events — oracle only
+    depends on prices + actual points, not on which combo is under test.
+    """
+    from predictions.optimizers.ilp_v3 import ILPOptimizer
+    ilp = ILPOptimizer()
+    cache: dict[int, float | None] = {}
+    for event in events:
+        driver_prices = dict(
+            FantasyDriverPrice.objects.filter(event=event).values_list("driver_id", "price")
+        )
+        constructor_prices = dict(
+            FantasyConstructorPrice.objects.filter(event=event).values_list("team_id", "price")
+        )
+        if not driver_prices or not constructor_prices:
+            cache[event.id] = None
+            continue
+        actuals = _actual_driver_results(event)
+        actual_driver_pts = {did: pts for did, (_, pts) in actuals.items()}
+        actual_constructor_pts = dict(
+            FantasyConstructorScore.objects.filter(event=event)
+            .values("team_id")
+            .annotate(total=Max("race_total"))
+            .values_list("team_id", "total")
+        )
+        oracle_drivers = pd.DataFrame([
+            {
+                "driver_id": did,
+                "predicted_fantasy_points": actual_driver_pts.get(did, 0.0),
+                "price": float(price),
+            }
+            for did, price in driver_prices.items()
+        ])
+        oracle_constructors = pd.DataFrame([
+            {
+                "team_id": tid,
+                "predicted_fantasy_points": float(actual_constructor_pts.get(tid, 0.0)),
+                "price": float(price),
+            }
+            for tid, price in constructor_prices.items()
+        ])
+        if oracle_drivers.empty or oracle_constructors.empty:
+            cache[event.id] = None
+            continue
+        try:
+            oracle_lineup = ilp.optimize_single_race(oracle_drivers, oracle_constructors, budget)
+            cache[event.id] = _score_lineup(oracle_lineup, actual_driver_pts, actual_constructor_pts)
+        except Exception:
+            cache[event.id] = None
+    return cache
+
+
 def _optimal_score(
     driver_preds_df: pd.DataFrame,
     constructor_preds_df: pd.DataFrame,
     actual_driver_pts: dict[int, float],
     actual_constructor_pts: dict[int, float],
-    optimizer: LineupOptimizer,
     budget: float,
 ) -> float:
     """
-    Run the optimizer with actual points as predictions to find the best
-    achievable lineup. This is the oracle ceiling — the score we'd get with
-    perfect predictions. The gap between this and lineup_actual_points shows
-    how much accuracy matters.
+    Run ILP with actual points as predictions to find the best achievable lineup.
+
+    Always uses ILP regardless of which optimizer is under test — ILP guarantees
+    the true optimal (highest possible score given the budget constraint), which
+    is the correct ceiling to measure against. Using the test optimizer here would
+    produce a different oracle per optimizer, making cross-optimizer comparisons
+    meaningless.
     """
+    from predictions.optimizers.ilp_v3 import ILPOptimizer
+    ilp = ILPOptimizer()
     oracle_drivers = driver_preds_df.copy()
     oracle_drivers["predicted_fantasy_points"] = oracle_drivers["driver_id"].map(
         lambda did: actual_driver_pts.get(int(did), 0.0)
@@ -370,5 +438,5 @@ def _optimal_score(
     oracle_constructors["predicted_fantasy_points"] = oracle_constructors["team_id"].map(
         lambda tid: actual_constructor_pts.get(int(tid), 0.0)
     )
-    oracle_lineup = optimizer.optimize_single_race(oracle_drivers, oracle_constructors, budget)
+    oracle_lineup = ilp.optimize_single_race(oracle_drivers, oracle_constructors, budget)
     return _score_lineup(oracle_lineup, actual_driver_pts, actual_constructor_pts)

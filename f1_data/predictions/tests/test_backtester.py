@@ -10,7 +10,9 @@ from predictions.evaluation.backtester import (
     Backtester,
     RaceBacktestResult,
     _compute_mae,
+    _optimal_score,
     _score_lineup,
+    compute_oracle_cache,
 )
 from predictions.optimizers.base import Lineup
 from predictions.optimizers.greedy_v2 import GreedyOptimizerV2
@@ -366,3 +368,113 @@ class TestBacktesterRun(TestCase):
         self.assertEqual(len(lineups_seen), 2)
         self.assertIsNone(lineups_seen[0])       # event2: no price data
         self.assertIsNotNone(lineups_seen[1])    # event3: should have a lineup
+
+    def test_compute_oracle_cache_matches_inline(self) -> None:
+        """
+        compute_oracle_cache() must produce the same value as calling _optimal_score()
+        directly with the same price/actual data. This verifies that the shared cache
+        path and the inline path are equivalent.
+        """
+        from predictions.evaluation.backtester import _build_driver_preds_df, _build_constructor_preds_df
+
+        drivers, teams = self._make_world()
+        season = drivers[0].season
+        budget = 100.0
+
+        event1 = self._make_full_event(season, round_number=1, drivers=drivers, teams=teams, with_prices=False)
+        event2 = self._make_full_event(season, round_number=2, drivers=drivers, teams=teams, with_prices=True)
+        events = [event1, event2]
+
+        cache = compute_oracle_cache(events, budget)
+
+        # event1 has no prices → None
+        self.assertIsNone(cache[event1.id])
+
+        # event2 has prices → should match _optimal_score() called with the same data
+        self.assertIsNotNone(cache[event2.id])
+
+        # Reconstruct what _optimal_score would compute inline for event2
+        from predictions.models import FantasyDriverPrice, FantasyConstructorPrice, FantasyConstructorScore
+        from django.db.models import Max
+        from predictions.evaluation.backtester import _actual_driver_results
+        import pandas as pd
+
+        driver_prices = dict(FantasyDriverPrice.objects.filter(event=event2).values_list("driver_id", "price"))
+        constructor_prices = dict(FantasyConstructorPrice.objects.filter(event=event2).values_list("team_id", "price"))
+        actuals = _actual_driver_results(event2)
+        actual_driver_pts = {did: pts for did, (_, pts) in actuals.items()}
+        actual_constructor_pts = dict(
+            FantasyConstructorScore.objects.filter(event=event2)
+            .values("team_id")
+            .annotate(total=Max("race_total"))
+            .values_list("team_id", "total")
+        )
+        # Build DataFrames the same way _optimize_and_score would
+        from predictions.features.v1_pandas import V1FeatureStore
+        from predictions.predictors.xgboost_v1 import XGBoostPredictor
+        from predictions.predictors.xgboost_v1 import build_training_dataset
+        X, y = build_training_dataset([event1], V1FeatureStore())
+        predictor = XGBoostPredictor()
+        predictor.fit(X, y)
+        features = V1FeatureStore().get_all_driver_features(event2.id)
+        predictions = predictor.predict(features)
+        driver_preds_df = _build_driver_preds_df(predictions, driver_prices)
+        constructor_preds_df = _build_constructor_preds_df(event2, predictions, constructor_prices)
+
+        inline_score = _optimal_score(
+            driver_preds_df, constructor_preds_df,
+            actual_driver_pts, actual_constructor_pts,
+            budget,
+        )
+        self.assertAlmostEqual(cache[event2.id], inline_score, places=3)
+
+    def test_backtester_run_with_oracle_cache(self) -> None:
+        """
+        Backtester.run() with a pre-computed oracle_cache must produce identical
+        optimal_actual_points to running without the cache (inline computation).
+        """
+        from predictions.evaluation.backtester import Backtester, compute_oracle_cache
+        from predictions.features.v1_pandas import V1FeatureStore
+        from predictions.predictors.xgboost_v1 import XGBoostPredictor
+        from predictions.optimizers.greedy_v2 import GreedyOptimizerV2
+
+        drivers, teams = self._make_world()
+        season = drivers[0].season
+        budget = 100.0
+        event1 = self._make_full_event(season, round_number=1, drivers=drivers, teams=teams, with_prices=False)
+        event2 = self._make_full_event(season, round_number=2, drivers=drivers, teams=teams, with_prices=True)
+        events = [event1, event2]
+
+        oracle_cache = compute_oracle_cache(events, budget)
+
+        def make_result_without_cache():
+            return Backtester().run(
+                events=events,
+                feature_store=V1FeatureStore(),
+                predictor=XGBoostPredictor(),
+                optimizer=GreedyOptimizerV2(),
+                min_train=1,
+                budget=budget,
+            )
+
+        def make_result_with_cache():
+            return Backtester().run(
+                events=events,
+                feature_store=V1FeatureStore(),
+                predictor=XGBoostPredictor(),
+                optimizer=GreedyOptimizerV2(),
+                min_train=1,
+                budget=budget,
+                oracle_cache=oracle_cache,
+            )
+
+        result_no_cache = make_result_without_cache()
+        result_with_cache = make_result_with_cache()
+
+        self.assertEqual(len(result_no_cache.race_results), len(result_with_cache.race_results))
+        for r_no, r_with in zip(result_no_cache.race_results, result_with_cache.race_results):
+            self.assertEqual(r_no.event_id, r_with.event_id)
+            if r_no.optimal_actual_points is None:
+                self.assertIsNone(r_with.optimal_actual_points)
+            else:
+                self.assertAlmostEqual(r_no.optimal_actual_points, r_with.optimal_actual_points, places=3)

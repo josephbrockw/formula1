@@ -7,7 +7,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from core.models import Driver, Event, Team
 from core.tasks.notifier import send_slack_blocks
-from predictions.evaluation.backtester import BacktestResult, Backtester, RaceBacktestResult
+from predictions.evaluation.backtester import BacktestResult, Backtester, RaceBacktestResult, compute_oracle_cache
 from predictions.features.v1_pandas import V1FeatureStore
 from predictions.features.v2_pandas import V2FeatureStore
 from predictions.features.v3_pandas import V3FeatureStore
@@ -121,19 +121,23 @@ class Command(BaseCommand):
         if options["all"]:
             combos = list(itertools.product(_VERSIONS, settings.ML_PREDICTOR_VERSIONS, _OPT_VERSIONS))
             self.stdout.write(f"Running all {len(combos)} combinations — seasons {seasons}")
+            self.stdout.write("Pre-computing oracle cache (ILP, once per race)…")
+            oracle_cache = compute_oracle_cache(events, budget)
             run_pairs: list[tuple[BacktestRun, BacktestResult]] = []
             for fs, pred, opt in combos:
                 self.stdout.write(f"\n── fs={fs} pred={pred} opt={opt} ──")
-                run, result = self._run_single(fs, pred, opt, events, seasons, min_train, budget, verbose)
+                run, result = self._run_single(fs, pred, opt, events, seasons, min_train, budget, verbose, oracle_cache=oracle_cache)
                 if run and result:
                     run_pairs.append((run, result))
             _send_all_done_notification(run_pairs, seasons)
         elif options["all_optimizers"]:
             self.stdout.write(f"Running optimizer comparison (fs=v2, pred=v2, opt=v1/v2/v3) — seasons {seasons}")
+            self.stdout.write("Pre-computing oracle cache (ILP, once per race)…")
+            oracle_cache = compute_oracle_cache(events, budget)
             run_pairs = []
             for opt in _OPT_VERSIONS:
                 self.stdout.write(f"\n── fs=v2 pred=v2 opt={opt} ──")
-                run, result = self._run_single("v2", "v2", opt, events, seasons, min_train, budget, verbose)
+                run, result = self._run_single("v2", "v2", opt, events, seasons, min_train, budget, verbose, oracle_cache=oracle_cache)
                 if run and result:
                     run_pairs.append((run, result))
             _send_all_done_notification(run_pairs, seasons)
@@ -145,20 +149,26 @@ class Command(BaseCommand):
             self.stdout.write(
                 f"Price Sensitivity Sweep — fs={fs} pred={pred} opt={opt} — {seasons_str}"
             )
+            # Oracle depends only on prices + actual points, not price_sensitivity,
+            # so we can share one cache across all sweep iterations.
+            self.stdout.write("Pre-computing oracle cache (ILP, once per race)…")
+            oracle_cache = compute_oracle_cache(events, budget)
             sweep_rows: list[tuple[float, float | None, float | None]] = []
             for ps in ps_values:
                 self.stdout.write(f"\n── price_sensitivity={ps} ──")
-                run, result = self._run_single(fs, pred, opt, events, seasons, min_train, budget, verbose, price_sensitivity=ps)
+                run, result = self._run_single(fs, pred, opt, events, seasons, min_train, budget, verbose, price_sensitivity=ps, oracle_cache=oracle_cache)
                 if run and result:
                     sweep_rows.append((ps, result.total_lineup_points, result.total_optimal_points))
             _print_price_sensitivity_table(self.stdout, sweep_rows, settings.PRICE_SENSITIVITY)
         elif len(fs_versions) > 1 or len(pred_versions) > 1 or len(opt_versions) > 1:
             combos = list(itertools.product(fs_versions, pred_versions, opt_versions))
             self.stdout.write(f"Running {len(combos)} combination(s) — seasons {seasons}")
+            self.stdout.write("Pre-computing oracle cache (ILP, once per race)…")
+            oracle_cache = compute_oracle_cache(events, budget)
             run_pairs = []
             for fs, pred, opt in combos:
                 self.stdout.write(f"\n── fs={fs} pred={pred} opt={opt} ──")
-                run, result = self._run_single(fs, pred, opt, events, seasons, min_train, budget, verbose)
+                run, result = self._run_single(fs, pred, opt, events, seasons, min_train, budget, verbose, oracle_cache=oracle_cache)
                 if run and result:
                     run_pairs.append((run, result))
             _send_all_done_notification(run_pairs, seasons)
@@ -180,6 +190,7 @@ class Command(BaseCommand):
         budget: float,
         verbose: bool = False,
         price_sensitivity: float | None = None,
+        oracle_cache: dict | None = None,
     ) -> tuple[BacktestRun | None, BacktestResult | None]:
         if fs_version == "v3":
             feature_store = V3FeatureStore()
@@ -265,6 +276,7 @@ class Command(BaseCommand):
             budget=budget,
             price_sensitivity=ps,
             on_race_done=on_race_done,
+            oracle_cache=oracle_cache,
         )
 
         if not result.race_results:
