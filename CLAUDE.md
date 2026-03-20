@@ -11,7 +11,6 @@ The core project is in f1_data/ which is the Django app and chrome_extension/ is
 
 ## Current Focus
 
-- **Pairwise ranking model:** Train XGBoost with `rank:pairwise` objective on driver pairs per race. Expands training data from ~20 rows/race to ~190 pairs/race (C(20,2)). More aligned with the ranking nature of lineup selection.
 - **Monte Carlo optimizer:** Sample from q10/q90 quantile bounds to select lineups that maximise expected points under uncertainty.
 
 ## Context Loading

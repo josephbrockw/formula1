@@ -15,6 +15,7 @@ from predictions.models import BacktestRaceResult, BacktestRun
 from predictions.optimizers.greedy_v1 import GreedyOptimizer as GreedyOptimizerV1
 from predictions.optimizers.greedy_v2 import GreedyOptimizerV2
 from predictions.optimizers.ilp_v3 import ILPOptimizer
+from predictions.optimizers.monte_carlo_v4 import MonteCarloOptimizer
 from predictions.predictors.xgboost_v1 import XGBoostPredictor
 from predictions.predictors.xgboost_v2 import XGBoostPredictorV2
 from predictions.predictors.xgboost_v3 import XGBoostPredictorV3
@@ -206,7 +207,9 @@ class Command(BaseCommand):
             predictor = XGBoostPredictorV2()
         else:
             predictor = XGBoostPredictor()
-        if opt_version == "v3":
+        if opt_version == "v4":
+            optimizer = MonteCarloOptimizer()
+        elif opt_version == "v3":
             optimizer = ILPOptimizer()
         elif opt_version == "v2":
             optimizer = GreedyOptimizerV2()

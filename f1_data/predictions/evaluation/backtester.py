@@ -300,15 +300,23 @@ def _build_driver_preds_df(
     predictions: pd.DataFrame, driver_prices: dict[int, float]
 ) -> pd.DataFrame:
     """Merge predictions with price data, dropping drivers without a price."""
-    rows = [
-        {
-            "driver_id": int(row["driver_id"]),
+    has_lower = "confidence_lower" in predictions.columns
+    has_upper = "confidence_upper" in predictions.columns
+    rows = []
+    for _, row in predictions.iterrows():
+        did = int(row["driver_id"])
+        if did not in driver_prices:
+            continue
+        entry: dict = {
+            "driver_id": did,
             "predicted_fantasy_points": float(row["predicted_fantasy_points"]),
-            "price": float(driver_prices[int(row["driver_id"])]),
+            "price": float(driver_prices[did]),
         }
-        for _, row in predictions.iterrows()
-        if int(row["driver_id"]) in driver_prices
-    ]
+        if has_lower:
+            entry["confidence_lower"] = float(row["confidence_lower"])
+        if has_upper:
+            entry["confidence_upper"] = float(row["confidence_upper"])
+        rows.append(entry)
     return pd.DataFrame(rows)
 
 
@@ -322,22 +330,45 @@ def _build_constructor_preds_df(
 
     Without a dedicated constructor predictor, this is our best proxy for
     constructor performance: if both drivers score well, the constructor scores well.
+
+    When driver predictions include confidence_lower/upper (q10/q90 bounds), we sum
+    the constituent drivers' bounds to populate constructor confidence bounds. This
+    is a slight underestimate of true variance (correlated drivers), but is simple
+    and consistent with how we build the point estimate.
     """
     pred_lookup = dict(
         zip(predictions["driver_id"].astype(int), predictions["predicted_fantasy_points"].astype(float))
     )
+    has_confidence = (
+        "confidence_lower" in predictions.columns
+        and "confidence_upper" in predictions.columns
+    )
+    q10_lookup: dict[int, float] = {}
+    q90_lookup: dict[int, float] = {}
+    if has_confidence:
+        q10_lookup = dict(
+            zip(predictions["driver_id"].astype(int), predictions["confidence_lower"].astype(float))
+        )
+        q90_lookup = dict(
+            zip(predictions["driver_id"].astype(int), predictions["confidence_upper"].astype(float))
+        )
+
     team_drivers: dict[int, list[int]] = {}
     for driver in Driver.objects.filter(season=event.season).select_related("team"):
         team_drivers.setdefault(driver.team_id, []).append(driver.id)
 
-    rows = [
-        {
+    rows = []
+    for team_id, price in constructor_prices.items():
+        driver_ids = team_drivers.get(team_id, [])
+        entry: dict = {
             "team_id": team_id,
-            "predicted_fantasy_points": sum(pred_lookup.get(did, 0.0) for did in team_drivers.get(team_id, [])),
+            "predicted_fantasy_points": sum(pred_lookup.get(did, 0.0) for did in driver_ids),
             "price": float(price),
         }
-        for team_id, price in constructor_prices.items()
-    ]
+        if has_confidence:
+            entry["confidence_lower"] = sum(q10_lookup.get(did, 0.0) for did in driver_ids)
+            entry["confidence_upper"] = sum(q90_lookup.get(did, 0.0) for did in driver_ids)
+        rows.append(entry)
     return pd.DataFrame(rows)
 
 

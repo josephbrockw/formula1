@@ -106,7 +106,11 @@ ML_OPTIMIZER: str = "v2"
 ML_FEATURE_STORE_VERSIONS: list[str] = ["v1", "v2", "v3"]
 ML_PREDICTOR_VERSIONS: list[str] = ["v1", "v2", "v3", "v4"]
 ML_PREDICTOR_V3_HALF_LIFE: int = 10  # events; tune by updating and re-running backtest
-ML_OPTIMIZER_VERSIONS: list[str] = ["v1", "v2", "v3"]
+ML_OPTIMIZER_VERSIONS: list[str] = ["v1", "v2", "v3", "v4"]
+
+# Monte Carlo optimizer: number of scenarios to sample per race.
+# Higher = more robust candidate diversity but slower. 500 ≈ 0.25s/race with Greedy inner.
+MC_N_SCENARIOS: int = 500
 
 # Slack
 SLACK_WEBHOOK_URL = os.environ.get('SLACK_WEBHOOK_URL', '')
