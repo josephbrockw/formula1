@@ -243,7 +243,7 @@ def _make_training_data(driver_ids: list[int]) -> tuple[pd.DataFrame, pd.DataFra
         "rolling_avg_pts": [20.0] * len(driver_ids),
     })
     y = pd.DataFrame({
-        "position": [float(i + 1) for i in range(len(driver_ids))],
+        "finishing_position": [float(i + 1) for i in range(len(driver_ids))],
         "fantasy_points": [30.0 - i * 2 for i in range(len(driver_ids))],
     })
     return X, y

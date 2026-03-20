@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pandas as pd
+from django.conf import settings
 from django.db.models import Max
 
 from core.models import Driver, Event, Lap, SessionResult
@@ -102,9 +103,12 @@ def _recent_race_form(driver: Driver, event: Event) -> dict[str, float]:
     )
 
     if not past_results:
+        # No cross-season results at all → true rookie in their first race.
+        # Use a pessimistic position default rather than mid-field.
+        _d = settings.NEW_ENTRANT_POSITION_DEFAULT
         return {
-            "position_mean_last3": 10.0,
-            "position_mean_last5": 10.0,
+            "position_mean_last3": _d,
+            "position_mean_last5": _d,
             "position_std_last5": 0.0,
             "dnf_rate_last10": 0.0,
             "positions_gained_mean_last5": 0.0,
@@ -142,7 +146,8 @@ def _recent_qualifying_form(driver: Driver, event: Event) -> dict[str, float]:
         .values("position")[:3]
     )
     positions = [float(r["position"]) for r in past_q_results if r["position"] is not None]
-    return {"qualifying_position_mean_last3": _mean(positions) if positions else 10.0}
+    # No cross-season qualifying history → true rookie in their first race.
+    return {"qualifying_position_mean_last3": _mean(positions) if positions else settings.NEW_ENTRANT_POSITION_DEFAULT}
 
 
 def _circuit_history(driver: Driver, event: Event) -> dict[str, float]:

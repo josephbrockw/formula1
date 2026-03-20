@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 
+from django.conf import settings
 from django.test import TestCase
 
 from predictions.features.v3_pandas import (
@@ -25,7 +26,7 @@ from predictions.tests.factories import (
     make_weather_sample,
 )
 
-V3_FEATURE_COUNT = 34  # 24 from V2 (weather_practice_rainfall replaced) + 10 new V3 features
+V3_FEATURE_COUNT = 26  # V2's 25 features - 1 replaced (weather_practice_rainfall→fraction) - 8 dropped zero-importance + 10 new V3 features
 
 
 # ---------------------------------------------------------------------------
@@ -540,9 +541,9 @@ class TestTeamQualifyingMeanLast3(TestCase):
         make_result(session, self.teammate, self.team, position=sai_pos)
 
     def test_no_history_returns_default(self) -> None:
-        """No qualifying events in either season → 10.0 default."""
+        """No qualifying events in either season → new entrant default (pessimistic)."""
         result = _team_qualifying_means([self.team.id], self.target_event, prev_year=2023)
-        self.assertAlmostEqual(result[self.team.id], 10.0)
+        self.assertAlmostEqual(result[self.team.id], settings.NEW_ENTRANT_POSITION_DEFAULT)
 
     def test_uses_only_last_3_events(self) -> None:
         """
@@ -574,9 +575,9 @@ class TestTeamQualifyingMeanLast3(TestCase):
         prev_session = make_session(prev_event, session_type="Q")
         make_result(prev_session, prev_driver, prev_team, position=20)
 
-        # self.team (2024 Ferrari) has no 2024 or 2023 history → default 10.0
+        # self.team has no 2024 or 2023 history → new entrant default (pessimistic)
         result = _team_qualifying_means([self.team.id], self.target_event, prev_year=2023)
-        self.assertAlmostEqual(result[self.team.id], 10.0)
+        self.assertAlmostEqual(result[self.team.id], settings.NEW_ENTRANT_POSITION_DEFAULT)
 
 
 # ---------------------------------------------------------------------------
@@ -663,9 +664,9 @@ class TestTeamRecentFinishMeanLast3(TestCase):
         make_result(session, self.teammate, self.team, position=sai_pos)
 
     def test_no_history_returns_default(self) -> None:
-        """No race events in either season → 10.0 default."""
+        """No race events in either season → new entrant default (pessimistic)."""
         result = _team_recent_finish_means([self.team.id], self.target_event, prev_year=2023)
-        self.assertAlmostEqual(result[self.team.id], 10.0)
+        self.assertAlmostEqual(result[self.team.id], settings.NEW_ENTRANT_POSITION_DEFAULT)
 
     def test_uses_only_last_3_events(self) -> None:
         """
@@ -697,7 +698,7 @@ class TestTeamRecentFinishMeanLast3(TestCase):
         make_result(prev_session, prev_driver, prev_team, position=20)
 
         result = _team_recent_finish_means([self.team.id], self.target_event, prev_year=2023)
-        self.assertAlmostEqual(result[self.team.id], 10.0)
+        self.assertAlmostEqual(result[self.team.id], settings.NEW_ENTRANT_POSITION_DEFAULT)
 
 
 # ---------------------------------------------------------------------------

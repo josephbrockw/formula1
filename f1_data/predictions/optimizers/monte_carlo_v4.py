@@ -79,6 +79,13 @@ class MonteCarloOptimizer:
             c_lower, c_upper,
         )
 
+        # Pre-build DataFrames once. The inner optimizer always copies its input
+        # (GreedyV2 does .copy(), ILP does .reset_index()), so we can safely
+        # overwrite predicted_fantasy_points in-place each scenario without
+        # the inner solve seeing stale data. This avoids 2×N_SCENARIOS allocations.
+        d_df = driver_predictions[["driver_id", "price"]].copy()
+        c_df = constructor_predictions[["team_id", "price"]].copy()
+
         # Run N scenarios: sample → inner solve → collect unique candidate lineups
         all_d_pts: list[dict[int, float]] = []
         all_c_pts: list[dict[int, float]] = []
@@ -93,12 +100,8 @@ class MonteCarloOptimizer:
             all_d_pts.append(d_pts)
             all_c_pts.append(c_pts)
 
-            d_df = driver_predictions.assign(
-                predicted_fantasy_points=driver_predictions["driver_id"].astype(int).map(d_pts)
-            )
-            c_df = constructor_predictions.assign(
-                predicted_fantasy_points=constructor_predictions["team_id"].astype(int).map(c_pts)
-            )
+            d_df["predicted_fantasy_points"] = sampled_d
+            c_df["predicted_fantasy_points"] = sampled_c
 
             lineup = self._inner.optimize_single_race(d_df, c_df, budget, constraints)
             key = (frozenset(lineup.driver_ids), frozenset(lineup.constructor_ids))

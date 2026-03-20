@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 
+from django.conf import settings
 from django.test import TestCase
 
 from predictions.features.v1_pandas import V1FeatureStore
@@ -34,8 +35,8 @@ class TestRecentRaceForm(TestCase):
 
     def test_no_past_races_returns_defaults(self) -> None:
         features = self.store.get_driver_features(self.driver.id, self.target_event.id)
-        self.assertEqual(features["position_mean_last3"], 10.0)
-        self.assertEqual(features["position_mean_last5"], 10.0)
+        self.assertEqual(features["position_mean_last3"], settings.NEW_ENTRANT_POSITION_DEFAULT)
+        self.assertEqual(features["position_mean_last5"], settings.NEW_ENTRANT_POSITION_DEFAULT)
         self.assertEqual(features["dnf_rate_last10"], 0.0)
         self.assertEqual(features["positions_gained_mean_last5"], 0.0)
 
@@ -101,7 +102,7 @@ class TestRecentRaceForm(TestCase):
         make_result(future_session, self.driver, self.team, position=1)
 
         features = self.store.get_driver_features(self.driver.id, self.target_event.id)
-        self.assertEqual(features["position_mean_last3"], 10.0)  # still default — future not counted
+        self.assertEqual(features["position_mean_last3"], settings.NEW_ENTRANT_POSITION_DEFAULT)  # still default — future not counted
 
 
 class TestRecentQualifyingForm(TestCase):
@@ -126,7 +127,7 @@ class TestRecentQualifyingForm(TestCase):
 
     def test_no_qualifying_history_returns_default(self) -> None:
         features = self.store.get_driver_features(self.driver.id, self.target_event.id)
-        self.assertEqual(features["qualifying_position_mean_last3"], 10.0)
+        self.assertEqual(features["qualifying_position_mean_last3"], settings.NEW_ENTRANT_POSITION_DEFAULT)
 
     def test_current_event_qualifying_not_included(self) -> None:
         # Even if qualifying data exists for the target event, it must not be used
@@ -134,7 +135,7 @@ class TestRecentQualifyingForm(TestCase):
         make_result(session, self.driver, self.team, position=1)
         features = self.store.get_driver_features(self.driver.id, self.target_event.id)
         # No past qualifying → should still be the default, not 1.0
-        self.assertEqual(features["qualifying_position_mean_last3"], 10.0)
+        self.assertEqual(features["qualifying_position_mean_last3"], settings.NEW_ENTRANT_POSITION_DEFAULT)
 
 
 class TestEventContext(TestCase):

@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 
 import pandas as pd
+from django.conf import settings
 from django.db.models import Count, Sum
 
 from core.models import Driver, Event, SessionResult, Team, WeatherSample
@@ -148,10 +149,10 @@ class V3FeatureStore:
         qualifying_means = _team_qualifying_means(team_ids, event, prev_year)
         finish_means = _team_recent_finish_means(team_ids, event, prev_year)
         df["team_qualifying_position_mean_last3"] = (
-            df["driver_id"].astype(int).map(driver_id_to_team_id).map(qualifying_means).fillna(10.0)
+            df["driver_id"].astype(int).map(driver_id_to_team_id).map(qualifying_means).fillna(settings.NEW_ENTRANT_POSITION_DEFAULT)
         )
         df["team_recent_finish_mean_last3"] = (
-            df["driver_id"].astype(int).map(driver_id_to_team_id).map(finish_means).fillna(10.0)
+            df["driver_id"].astype(int).map(driver_id_to_team_id).map(finish_means).fillna(settings.NEW_ENTRANT_POSITION_DEFAULT)
         )
 
         # Championship rank relative to teammate, with previous-season fallback.
@@ -472,7 +473,8 @@ def _team_qualifying_means(team_ids: list[int], event: Event, prev_year: int) ->
     for team_id in team_ids:
         event_means = [sum(v) / len(v) for v in team_event_pos[team_id].values()]
         last3 = event_means[-3:]
-        result[team_id] = sum(last3) / len(last3) if last3 else 10.0
+        # No data in current or previous season → brand-new constructor with no history.
+        result[team_id] = sum(last3) / len(last3) if last3 else settings.NEW_ENTRANT_POSITION_DEFAULT
     return result
 
 
@@ -611,5 +613,6 @@ def _team_recent_finish_means(team_ids: list[int], event: Event, prev_year: int)
     for team_id in team_ids:
         event_means = [sum(v) / len(v) for v in team_event_pos[team_id].values()]
         last3 = event_means[-3:]
-        result[team_id] = sum(last3) / len(last3) if last3 else 10.0
+        # No data in current or previous season → brand-new constructor with no history.
+        result[team_id] = sum(last3) / len(last3) if last3 else settings.NEW_ENTRANT_POSITION_DEFAULT
     return result

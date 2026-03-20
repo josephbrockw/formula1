@@ -3,11 +3,42 @@ from __future__ import annotations
 import pandas as pd
 
 from predictions.optimizers.base import Lineup
-from predictions.optimizers.greedy_v1 import _pick_greedily
 
 # Fantasy rules: 5 drivers, 2 constructors
 _N_DRIVERS = 5
 _N_CONSTRUCTORS = 2
+
+
+def _pick_greedily(
+    candidates: pd.DataFrame,
+    id_col: str,
+    n_to_pick: int,
+    budget: float,
+) -> list[int]:
+    """
+    Greedily pick n_to_pick candidates by value (descending) within budget.
+
+    Before picking candidate at index i, checks that:
+        candidate.price + cheapest(slots_left - 1 candidates after index i) <= remaining_budget
+
+    This lookahead ensures we never commit to a pick that makes it impossible
+    to fill the remaining slots.
+    """
+    prices = candidates["price"].tolist()
+    picked: list[int] = []
+    remaining = budget
+
+    for i, row in candidates.iterrows():
+        if len(picked) == n_to_pick:
+            break
+        slots_left = n_to_pick - len(picked)
+        future_prices = sorted(prices[i + 1:])
+        cheapest_to_fill_rest = sum(future_prices[: slots_left - 1])
+        if row["price"] + cheapest_to_fill_rest <= remaining:
+            picked.append(int(row[id_col]))
+            remaining -= float(row["price"])
+
+    return picked
 
 
 class GreedyOptimizerV2:

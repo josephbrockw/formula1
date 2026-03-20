@@ -19,22 +19,24 @@ Event                                      │
 Session                                    ▼
 SessionResult                Performance Predictor
 Lap                          ├── XGBoostPredictor (v1)      MSE mean ± training residual std
-WeatherSample                ├── XGBoostPredictorV2 (v2)    MSE mean + q10/q90 quantile bounds ← current best
-                             └── XGBoostPredictorV3 (v3)    V2 + exponential decay sample weights
+WeatherSample                ├── XGBoostPredictorV2 (v2)    MSE mean + q10/q90 quantile bounds
+                             ├── XGBoostPredictorV3 (v3)    V2 + exponential decay sample weights
+                             └── XGBoostPredictorV4 (v4)    V3 + XGBRanker pairwise objective + linear calibration ← current best
                                            │
                                            ▼
                              Optimizer
                              ├── GreedyOptimizer (v1)       PPM greedy only
-                             ├── GreedyOptimizerV2 (v2)     PPM greedy + upgrade pass + transfer constraints ← current best
-                             └── ILPOptimizer (v3)           Integer Linear Programming — provably optimal + transfer penalty in objective
+                             ├── GreedyOptimizerV2 (v2)     PPM greedy + upgrade pass + transfer constraints
+                             ├── ILPOptimizer (v3)          Integer Linear Programming — provably optimal + transfer penalty in objective
+                             └── MonteCarloOptimizer (v4)   Sample 500 scenarios from q10/q90 bounds; return highest average-scoring candidate
                                            │
                                            ▼
-                             Backtester  (walk-forward, price-aware)
+                             Backtester  (walk-forward, price-aware, shared oracle cache)
                                            │
                                            ▼
                              Management Commands
                              ├── next_race        (main weekly command — train + predict + optimize)
-                             ├── backtest         (--feature-store v1/v2/v3, --predictor v1/v2/v3, --optimizer v1/v2/v3)
+                             ├── backtest         (--feature-store v1/v2/v3, --predictor v1/v2/v3/v4, --optimizer v1/v2/v3/v4)
                              ├── tune_hyperparams (random search over XGBoost params)
                              ├── predict_race     (superseded by next_race)
                              └── optimize_lineup  (superseded by next_race)
@@ -57,24 +59,29 @@ python manage.py backtest --seasons 2022 2023 2024 2025 --min-train 5
 
 Options:
 - `--feature-store v1|v2|v3` (default: v2) — one or more versions to sweep
-- `--predictor v1|v2|v3` (default: v2) — one or more versions to sweep
-- `--optimizer v1|v2|v3` (default: v2)
+- `--predictor v1|v2|v3|v4` (default: v2) — one or more versions to sweep
+- `--optimizer v1|v2|v3|v4` (default: v2) — one or more versions to sweep
 - `--min-train N` (default: 5) — minimum races before making the first prediction
 - `--budget 100` (default: 100)
 - `--verbose` — print each race's selected lineup and cost
 
 Output columns: **MAE Pos**, **MAE Pts**, **Lineup** (actual points scored), **Optimal** (oracle ceiling), **Trades**.
 
-Pass multiple values to `--feature-store` or `--predictor` to run all combinations in one go:
+**The oracle is always the same number regardless of optimizer.** It is computed once per race by running ILP with *actual* post-race points as inputs — the best lineup that was theoretically achievable given perfect knowledge. When passing multiple `--optimizer` values, this is pre-computed once and shared so the comparison is clean: both optimizers are measured against an identical ceiling.
+
+Pass multiple values to `--feature-store`, `--predictor`, or `--optimizer` to run all combinations in one go:
 
 ```bash
+# Compare ILP (v3) vs Monte Carlo (v4) with the v4 predictor's confidence bounds
+python manage.py backtest --feature-store v3 --predictor v4 --optimizer v3 v4 --seasons 2024
+
 # Compare v2 and v3 predictor with v3 feature store
 python manage.py backtest --feature-store v3 --predictor v2 v3 --optimizer v2 --seasons 2022 2023 2024 2025
 ```
 
 Sweep shortcuts:
 ```bash
-# All optimizer versions (v1/v2/v3) with fixed fs=v2, pred=v2
+# All optimizer versions (v1/v2/v3/v4) with fixed fs=v2, pred=v2
 python manage.py backtest --seasons 2024 2025 --all-optimizers
 
 # All combinations across all registered versions of every component
@@ -117,12 +124,22 @@ python manage.py backtest --feature-store v3 --predictor v2 v3 --optimizer v2 --
 
 | Config | MAE Pos | MAE Pts | Total Lineup Pts | Pts Left on Table |
 |--------|---------|---------|-----------------|-------------------|
-| fs=v3, pred=v2 | 3.56 | 8.43 | 14,037 | 5,486 |
-| **fs=v3, pred=v3** | **3.55** | **8.43** | **14,490** | **5,033** |
+| fs=v3, pred=v2, opt=v2 | 3.56 | 8.43 | 14,037 | 5,486 |
+| **fs=v3, pred=v3, opt=v2** | **3.55** | **8.43** | **14,490** | **5,033** |
 
 Tested over 2022–2025 seasons, 87 predictions, `--min-train 5`.
 
 Pred=v3 (recency weighting) achieves **+453 lineup points (+3.2%)** with identical MAE. The improvement comes from better relative driver ranking rather than better average accuracy — recency weighting causes the model to focus on modern F1 patterns. See `DECISIONS.md` entry 2026-03-19 for full analysis including feature importance shifts.
+
+**v4 predictor + v4 optimizer (pending results):**
+
+```bash
+# Recommended comparison run — v4 predictor is required for MC because it produces
+# the q10/q90 confidence bounds that MC samples from. v3 opt is the control.
+python manage.py backtest --feature-store v3 --predictor v4 --optimizer v3 v4 --seasons 2024 --min-train 5
+```
+
+The oracle column will be identical for both optimizer rows (shared ILP cache). A higher lineup score for v4 vs v3 confirms that MC's scenario sampling finds better lineups than ILP-on-mean when the predictor's confidence bounds reflect real outcome uncertainty.
 
 ---
 

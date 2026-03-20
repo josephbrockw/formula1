@@ -24,6 +24,26 @@ from predictions.predictors.xgboost_v4 import XGBoostPredictorV4
 _VERSIONS = settings.ML_FEATURE_STORE_VERSIONS
 _OPT_VERSIONS = settings.ML_OPTIMIZER_VERSIONS
 
+# Registry maps version strings to constructor callables.
+# To add a new version: add one entry here and update settings.ML_*_VERSIONS.
+_FEATURE_STORE_REGISTRY = {
+    "v1": V1FeatureStore,
+    "v2": V2FeatureStore,
+    "v3": V3FeatureStore,
+}
+_PREDICTOR_REGISTRY = {
+    "v1": XGBoostPredictor,
+    "v2": XGBoostPredictorV2,
+    "v3": XGBoostPredictorV3,
+    "v4": XGBoostPredictorV4,
+}
+_OPTIMIZER_REGISTRY = {
+    "v1": GreedyOptimizerV1,
+    "v2": GreedyOptimizerV2,
+    "v3": ILPOptimizer,
+    "v4": MonteCarloOptimizer,
+}
+
 
 class Command(BaseCommand):
     help = "Run walk-forward backtesting over historical seasons and print a performance report"
@@ -193,28 +213,9 @@ class Command(BaseCommand):
         price_sensitivity: float | None = None,
         oracle_cache: dict | None = None,
     ) -> tuple[BacktestRun | None, BacktestResult | None]:
-        if fs_version == "v3":
-            feature_store = V3FeatureStore()
-        elif fs_version == "v2":
-            feature_store = V2FeatureStore()
-        else:
-            feature_store = V1FeatureStore()
-        if pred_version == "v4":
-            predictor = XGBoostPredictorV4()
-        elif pred_version == "v3":
-            predictor = XGBoostPredictorV3()
-        elif pred_version == "v2":
-            predictor = XGBoostPredictorV2()
-        else:
-            predictor = XGBoostPredictor()
-        if opt_version == "v4":
-            optimizer = MonteCarloOptimizer()
-        elif opt_version == "v3":
-            optimizer = ILPOptimizer()
-        elif opt_version == "v2":
-            optimizer = GreedyOptimizerV2()
-        else:
-            optimizer = GreedyOptimizerV1()
+        feature_store = _FEATURE_STORE_REGISTRY[fs_version]()
+        predictor = _PREDICTOR_REGISTRY[pred_version]()
+        optimizer = _OPTIMIZER_REGISTRY[opt_version]()
 
         ps = price_sensitivity if price_sensitivity is not None else settings.PRICE_SENSITIVITY
         run = BacktestRun.objects.create(

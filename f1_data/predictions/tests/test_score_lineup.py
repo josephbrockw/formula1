@@ -268,7 +268,7 @@ class TestNextRaceAutoScoring(TestCase):
             "event_id": [self.target_event.id] * 5,
         })
         self._mock_X = pd.DataFrame({"driver_id": driver_ids, "event_id": [1] * 5})
-        self._mock_y = pd.DataFrame({"position": [1.0, 2.0, 3.0, 4.0, 5.0], "fantasy_points": [30.0] * 5})
+        self._mock_y = pd.DataFrame({"finishing_position": [1.0, 2.0, 3.0, 4.0, 5.0], "fantasy_points": [30.0] * 5})
 
         # Seed target event prices so next_race doesn't raise
         for d in self.drivers:
