@@ -227,8 +227,15 @@ def next_race(request: HttpRequest, year: int, round_number: int) -> HttpRespons
 
 
 def backtest_explorer(request: HttpRequest) -> HttpResponse:
-    runs = BacktestRun.objects.order_by("-created_at")
+    PAGE = 25
     selected_id = request.GET.get("run_id")
+    offset = int(request.GET.get("offset", 0))
+
+    qs = BacktestRun.objects.order_by("-created_at")
+    runs = list(qs[offset : offset + PAGE])
+    has_more = qs.count() > offset + PAGE
+    next_offset = offset + PAGE
+
     race_results = []
     selected_run = None
     if selected_id:
@@ -239,9 +246,20 @@ def backtest_explorer(request: HttpRequest) -> HttpResponse:
                 .select_related("event", "event__season")
                 .order_by("event__event_date")
             )
-    context = {"runs": runs, "selected_run": selected_run, "race_results": race_results}
+
+    context = {
+        "runs": runs,
+        "selected_run": selected_run,
+        "race_results": race_results,
+        "has_more": has_more,
+        "next_offset": next_offset,
+    }
+
     if request.headers.get("HX-Request"):
+        if "offset" in request.GET:
+            return render(request, "predictions/partials/backtest_rows.html", context)
         return render(request, "predictions/partials/backtest_run_detail.html", context)
+
     return render(request, "predictions/backtest.html", context)
 
 

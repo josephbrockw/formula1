@@ -18,6 +18,7 @@ from predictions.optimizers.ilp_v3 import ILPOptimizer
 from predictions.predictors.xgboost_v1 import XGBoostPredictor
 from predictions.predictors.xgboost_v2 import XGBoostPredictorV2
 from predictions.predictors.xgboost_v3 import XGBoostPredictorV3
+from predictions.predictors.xgboost_v4 import XGBoostPredictorV4
 
 _VERSIONS = settings.ML_FEATURE_STORE_VERSIONS
 _OPT_VERSIONS = settings.ML_OPTIMIZER_VERSIONS
@@ -63,8 +64,9 @@ class Command(BaseCommand):
         parser.add_argument(
             "--optimizer",
             choices=_OPT_VERSIONS,
-            default="v2",
-            help="Optimizer version (default: v2). Ignored when --all or --all-optimizers is set.",
+            default=["v2"],
+            nargs="+",
+            help="Optimizer version(s) to run (default: v2). Pass multiple to sweep, e.g. --optimizer v2 v3.",
         )
         parser.add_argument(
             "--all",
@@ -112,7 +114,7 @@ class Command(BaseCommand):
 
         fs_versions = options["feature_store"]
         pred_versions = options["predictor"]
-        opt_version = options["optimizer"]
+        opt_versions = options["optimizer"]
         ps_values: list[float] = options["price_sensitivity"]
         verbose = options["verbose"]
 
@@ -138,7 +140,7 @@ class Command(BaseCommand):
         elif len(ps_values) > 1:
             fs = fs_versions[0]
             pred = pred_versions[0]
-            opt = opt_version
+            opt = opt_versions[0]
             seasons_str = "–".join(str(s) for s in [min(seasons), max(seasons)]) if len(seasons) > 1 else str(seasons[0])
             self.stdout.write(
                 f"Price Sensitivity Sweep — fs={fs} pred={pred} opt={opt} — {seasons_str}"
@@ -150,8 +152,8 @@ class Command(BaseCommand):
                 if run and result:
                     sweep_rows.append((ps, result.total_lineup_points, result.total_optimal_points))
             _print_price_sensitivity_table(self.stdout, sweep_rows, settings.PRICE_SENSITIVITY)
-        elif len(fs_versions) > 1 or len(pred_versions) > 1:
-            combos = list(itertools.product(fs_versions, pred_versions, [opt_version]))
+        elif len(fs_versions) > 1 or len(pred_versions) > 1 or len(opt_versions) > 1:
+            combos = list(itertools.product(fs_versions, pred_versions, opt_versions))
             self.stdout.write(f"Running {len(combos)} combination(s) — seasons {seasons}")
             run_pairs = []
             for fs, pred, opt in combos:
@@ -162,7 +164,7 @@ class Command(BaseCommand):
             _send_all_done_notification(run_pairs, seasons)
         else:
             self._run_single(
-                fs_versions[0], pred_versions[0], opt_version,
+                fs_versions[0], pred_versions[0], opt_versions[0],
                 events, seasons, min_train, budget, verbose,
                 price_sensitivity=ps_values[0],
             )
@@ -185,7 +187,9 @@ class Command(BaseCommand):
             feature_store = V2FeatureStore()
         else:
             feature_store = V1FeatureStore()
-        if pred_version == "v3":
+        if pred_version == "v4":
+            predictor = XGBoostPredictorV4()
+        elif pred_version == "v3":
             predictor = XGBoostPredictorV3()
         elif pred_version == "v2":
             predictor = XGBoostPredictorV2()

@@ -27,25 +27,7 @@
       </tr>
     </thead>
     <tbody>
-      {% for run in runs %}
-      <tr style="cursor:pointer{% if selected_run.id == run.id %};background:var(--surface-raised){% endif %}"
-          hx-get="/backtest/?run_id={{ run.id }}"
-          hx-target="#run-detail"
-          hx-push-url="true">
-        <td style="color:var(--muted)">{{ run.id }}</td>
-        <td style="white-space:nowrap;font-size:0.85rem">{{ run.created_at|date:"M j, H:i" }}</td>
-        <td>{{ run.seasons }}</td>
-        <td><code>{{ run.feature_store_version }}</code></td>
-        <td><code>{{ run.predictor_version }}</code></td>
-        <td><code>{{ run.optimizer_version }}</code></td>
-        <td class="num">{{ run.race_results.count }}</td>
-        <td class="num">{% if run.mean_mae_position is not None %}{{ run.mean_mae_position|floatformat:2 }}{% else %}<span class="neutral">—</span>{% endif %}</td>
-        <td class="num">{% if run.mean_mae_fantasy_points is not None %}{{ run.mean_mae_fantasy_points|floatformat:2 }}{% else %}<span class="neutral">—</span>{% endif %}</td>
-        <td class="num">{% if run.total_lineup_points is not None %}{{ run.total_lineup_points|floatformat:0 }}{% else %}<span class="neutral">—</span>{% endif %}</td>
-        <td class="num neutral">{% if run.total_optimal_points is not None %}{{ run.total_optimal_points|floatformat:0 }}{% else %}<span class="neutral">—</span>{% endif %}</td>
-        <td class="num worse">{% if run.left_on_table is not None %}{{ run.left_on_table|floatformat:0 }}{% else %}<span class="neutral">—</span>{% endif %}</td>
-      </tr>
-      {% endfor %}
+      {% include "predictions/partials/backtest_rows.html" %}
     </tbody>
   </table>
 </div>

@@ -25,6 +25,8 @@ from predictions.optimizers.greedy_v2 import GreedyOptimizerV2
 from predictions.optimizers.ilp_v3 import ILPOptimizer
 from predictions.predictors.xgboost_v1 import XGBoostPredictor, build_training_dataset
 from predictions.predictors.xgboost_v2 import XGBoostPredictorV2
+from predictions.predictors.xgboost_v3 import XGBoostPredictorV3
+from predictions.predictors.xgboost_v4 import XGBoostPredictorV4
 
 from predictions.scoring import (
     compute_oracle,
@@ -66,7 +68,12 @@ class Command(BaseCommand):
         pred_version = getattr(settings, "ML_PREDICTOR", "v2")
         opt_version = getattr(settings, "ML_OPTIMIZER", "v2")
         feature_store = {"v1": V1FeatureStore, "v2": V2FeatureStore}[fs_version]()
-        predictor = {"v1": XGBoostPredictor, "v2": XGBoostPredictorV2}[pred_version]()
+        predictor = {
+            "v1": XGBoostPredictor,
+            "v2": XGBoostPredictorV2,
+            "v3": XGBoostPredictorV3,
+            "v4": XGBoostPredictorV4,
+        }[pred_version]()
 
         self.stdout.write(f"\nNext Race: Round {round_number} — {event.event_name} ({event.event_date})")
         self.stdout.write(f"Training on {len(train_events)} past events  [fs={fs_version} pred={pred_version} opt={opt_version}]\n")

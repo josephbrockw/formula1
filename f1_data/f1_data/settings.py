@@ -104,7 +104,7 @@ ML_OPTIMIZER: str = "v2"
 # Valid versions for each component (update when adding new versions).
 # Management commands import from here so choices stay in one place.
 ML_FEATURE_STORE_VERSIONS: list[str] = ["v1", "v2", "v3"]
-ML_PREDICTOR_VERSIONS: list[str] = ["v1", "v2", "v3"]
+ML_PREDICTOR_VERSIONS: list[str] = ["v1", "v2", "v3", "v4"]
 ML_PREDICTOR_V3_HALF_LIFE: int = 10  # events; tune by updating and re-running backtest
 ML_OPTIMIZER_VERSIONS: list[str] = ["v1", "v2", "v3"]
 
