@@ -151,9 +151,9 @@ python manage.py import_fantasy_csv --dir ../data/YYYY/
 # 3. Record the lineup you actually submitted
 python manage.py record_my_lineup \
   --year YYYY --round N \
-  --drivers NOR PIA LEC HAM RUS \
+  --drivers LEC PER BOT COL LAW \
   --drs NOR \
-  --constructors McLaren Ferrari
+  --constructors Mercedes Ferrari
 
 # 4. Plan for the next race
 #    This also auto-scores round N (MyLineup + LineupRecommendation + oracle)

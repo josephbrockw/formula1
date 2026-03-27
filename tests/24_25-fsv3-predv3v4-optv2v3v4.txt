@@ -1,0 +1,532 @@
+(venv) joes-mac-mini:f1_data joewilkinson$ python manage.py backtest --seasons 2024 2025 --feature-store v3 --predictor v3 v4 --optimizer v2 v3 v4 --min-train 5
+Running 6 combination(s) — seasons [2024, 2025]
+Pre-computing oracle cache (ILP, once per race)…
+
+── fs=v3 pred=v3 opt=v2 ──
+Backtest run #62 — 48 events, 43 predictions, min_train=5
+            Event                                Train  MAE Pos  MAE Pts  Trades   Lineup  Optimal
+--------------------------------------------------------------------------------------------------
+[  1/43]  Miami Grand Prix                         5     3.40     7.28       0    158.0    258.0
+[  2/43]  Emilia Romagna Grand Prix                6     2.93     6.98       0    153.0    199.0
+[  3/43]  Monaco Grand Prix                        7     3.33     8.27       0     63.0    184.0
+[  4/43]  Canadian Grand Prix                      8     5.18    10.80       0     80.0    245.0
+[  5/43]  Spanish Grand Prix                       9     2.92     6.23       2    182.0    232.0
+[  6/43]  Austrian Grand Prix                     10     3.93    11.80       0    150.0    332.0
+[  7/43]  British Grand Prix                      11     4.02     8.46       0    104.0    188.0
+[  8/43]  Hungarian Grand Prix                    12     3.07     4.96       0    130.0    235.0
+[  9/43]  Belgian Grand Prix                      13     3.50     6.85       0    144.0    228.0
+[ 10/43]  Dutch Grand Prix                        14     2.68     4.58       0    143.0    222.0
+[ 11/43]  Italian Grand Prix                      15     2.44     5.73       2    157.0    250.0
+[ 12/43]  Azerbaijan Grand Prix                   16     3.72     8.30       0    148.0    250.0
+[ 13/43]  Singapore Grand Prix                    17     2.74     4.50       0    115.0    198.0
+[ 14/43]  United States Grand Prix                18     2.85     7.34       0    124.0    285.0
+[ 15/43]  Mexico City Grand Prix                  19     3.62     6.89       0    115.0    215.0
+[ 16/43]  São Paulo Grand Prix                    20     4.77    11.79       0    185.0    290.0
+[ 17/43]  Las Vegas Grand Prix                    21     3.17    10.03       0    189.0    284.0
+[ 18/43]  Qatar Grand Prix                        22     4.04     7.33       0    129.0    207.0
+[ 19/43]  Abu Dhabi Grand Prix                    23     3.33     7.54       0    108.0    234.0
+[ 20/43]  Australian Grand Prix                   24     4.13    10.48       0    109.0    232.0
+[ 21/43]  Chinese Grand Prix                      25     4.42    11.03       0    179.0    310.0
+[ 22/43]  Japanese Grand Prix                     26     3.14     5.49       0    128.0    193.0
+[ 23/43]  Bahrain Grand Prix                      27     3.35     8.69       0    174.0    293.0
+[ 24/43]  Saudi Arabian Grand Prix                28     2.42     6.13       0    179.0    210.0
+[ 25/43]  Miami Grand Prix                        29     2.39    11.51       0    172.0    287.0
+[ 26/43]  Emilia Romagna Grand Prix               30     3.15     7.03       0    157.0    240.0
+[ 27/43]  Monaco Grand Prix                       31     3.61     7.80       0    137.0    215.0
+[ 28/43]  Spanish Grand Prix                      32     3.56     8.53       0    233.0    267.0
+[ 29/43]  Canadian Grand Prix                     33     4.23     8.34       0    214.0    266.0
+[ 30/43]  Austrian Grand Prix                     34     3.72     9.71       0    235.0    259.0
+[ 31/43]  British Grand Prix                      35     4.26     9.62       0    159.0    249.0
+[ 32/43]  Belgian Grand Prix                      36     3.63     7.25       0    178.0    175.0
+[ 33/43]  Hungarian Grand Prix                    37     3.33     5.22       0    209.0    230.0
+[ 34/43]  Dutch Grand Prix                        38     5.04    12.50       0    209.0    293.0
+[ 35/43]  Italian Grand Prix                      39     2.70     6.63       0    125.0    224.0
+[ 36/43]  Azerbaijan Grand Prix                   40     4.40    10.16       0     70.0    207.0
+[ 37/43]  Singapore Grand Prix                    41     3.81     5.94       0    170.0    207.0
+[ 38/43]  United States Grand Prix                42     3.09     9.85       0    171.0    230.0
+[ 39/43]  Mexico City Grand Prix                  43     3.22     6.73       0    172.0    193.0
+[ 40/43]  São Paulo Grand Prix                    44     4.06    16.36       0    173.0    360.0
+[ 41/43]  Las Vegas Grand Prix                    45     3.84    10.27       0    113.0    225.0
+[ 42/43]  Qatar Grand Prix                        46     3.59     8.68       0    165.0    190.0
+[ 43/43]  Abu Dhabi Grand Prix                    47     3.50     7.03       0    219.0    233.0
+
+Races evaluated:        43
+Mean MAE (position):    3.54
+Mean MAE (fantasy pts): 8.29
+Total lineup points:    6627.0
+Total optimal points:   10324.0
+Points left on table:   3697.0
+
+Season  Races  MAE Pos  MAE Pts    Lineup    Oracle     Left
+--------------------------------------------------------------
+  2024     19     3.45     7.67      2577      4536     1959
+  2025     24     3.61     8.79      4050      5788     1738
+
+Feature importances (fantasy pts model, final trained model):
+  qualifying_position_mean_last3                0.1398
+  position_mean_last5                           0.1383
+  team_constructor_standing_rank                0.1057
+  driver_vs_teammate_championship_gap           0.0495
+  circuit_position_mean_last3                   0.0481
+  position_mean_last3                           0.0460
+  team_recent_finish_mean_last3                 0.0453
+  practice_avg_best_5_rank                      0.0412
+  fantasy_points_mean_last3                     0.0365
+  team_position_mean_last5                      0.0355
+  driver_wet_vs_dry_position_delta              0.0330
+  team_qualifying_position_mean_last3           0.0288
+  weather_air_temp_mean                         0.0278
+  positions_gained_mean_last5                   0.0275
+  round_number                                  0.0254
+  weather_track_temp_mean                       0.0237
+  weather_practice_rain_fraction                0.0234
+  driver_vs_teammate_gap_last5                  0.0211
+  track_temp_deviation_from_circuit_mean        0.0202
+  circuit_historical_rain_rate                  0.0181
+  practice_best_lap_rank                        0.0177
+  position_std_last5                            0.0170
+  driver_races                                  0.0161
+  fantasy_points_trend_last5                    0.0144
+  is_sprint_weekend                             0.0000
+  driver_wet_session_count                      0.0000
+
+── fs=v3 pred=v3 opt=v3 ──
+Backtest run #63 — 48 events, 43 predictions, min_train=5
+            Event                                Train  MAE Pos  MAE Pts  Trades   Lineup  Optimal
+--------------------------------------------------------------------------------------------------
+[  1/43]  Miami Grand Prix                         5     3.40     7.28       0    156.0    258.0
+[  2/43]  Emilia Romagna Grand Prix                6     2.93     6.98       0    166.0    199.0
+[  3/43]  Monaco Grand Prix                        7     3.33     8.27       1    170.0    184.0
+[  4/43]  Canadian Grand Prix                      8     5.18    10.80       1     80.0    245.0
+[  5/43]  Spanish Grand Prix                       9     2.92     6.23       2    179.0    232.0
+[  6/43]  Austrian Grand Prix                     10     3.93    11.80       1    209.0    332.0
+[  7/43]  British Grand Prix                      11     4.02     8.46       2    128.0    188.0
+[  8/43]  Hungarian Grand Prix                    12     3.07     4.96       0    197.0    235.0
+[  9/43]  Belgian Grand Prix                      13     3.50     6.85       0    176.0    228.0
+[ 10/43]  Dutch Grand Prix                        14     2.68     4.58       1    163.0    222.0
+[ 11/43]  Italian Grand Prix                      15     2.44     5.73       0    202.0    250.0
+[ 12/43]  Azerbaijan Grand Prix                   16     3.72     8.30       1    158.0    250.0
+[ 13/43]  Singapore Grand Prix                    17     2.74     4.50       1    174.0    198.0
+[ 14/43]  United States Grand Prix                18     2.85     7.34       1    228.0    285.0
+[ 15/43]  Mexico City Grand Prix                  19     3.62     6.89       1    191.0    215.0
+[ 16/43]  São Paulo Grand Prix                    20     4.77    11.79       1    120.0    290.0
+[ 17/43]  Las Vegas Grand Prix                    21     3.17    10.03       1    224.0    284.0
+[ 18/43]  Qatar Grand Prix                        22     4.04     7.33       1    174.0    207.0
+[ 19/43]  Abu Dhabi Grand Prix                    23     3.33     7.54       1    184.0    234.0
+[ 20/43]  Australian Grand Prix                   24     4.13    10.48       0    138.0    232.0
+[ 21/43]  Chinese Grand Prix                      25     4.42    11.03       0    156.0    310.0
+[ 22/43]  Japanese Grand Prix                     26     3.14     5.49       2    164.0    193.0
+[ 23/43]  Bahrain Grand Prix                      27     3.35     8.69       1    218.0    293.0
+[ 24/43]  Saudi Arabian Grand Prix                28     2.42     6.13       1    143.0    210.0
+[ 25/43]  Miami Grand Prix                        29     2.39    11.51       1     98.0    287.0
+[ 26/43]  Emilia Romagna Grand Prix               30     3.15     7.03       0    148.0    240.0
+[ 27/43]  Monaco Grand Prix                       31     3.61     7.80       2    149.0    215.0
+[ 28/43]  Spanish Grand Prix                      32     3.56     8.53       0    182.0    267.0
+[ 29/43]  Canadian Grand Prix                     33     4.23     8.34       0    125.0    266.0
+[ 30/43]  Austrian Grand Prix                     34     3.72     9.71       1    191.0    259.0
+[ 31/43]  British Grand Prix                      35     4.26     9.62       2    114.0    249.0
+[ 32/43]  Belgian Grand Prix                      36     3.63     7.25       1    107.0    175.0
+[ 33/43]  Hungarian Grand Prix                    37     3.33     5.22       0    144.0    230.0
+[ 34/43]  Dutch Grand Prix                        38     5.04    12.50       2    147.0    293.0
+[ 35/43]  Italian Grand Prix                      39     2.70     6.63       0    145.0    224.0
+[ 36/43]  Azerbaijan Grand Prix                   40     4.40    10.16       2     80.0    207.0
+[ 37/43]  Singapore Grand Prix                    41     3.81     5.94       1    127.0    207.0
+[ 38/43]  United States Grand Prix                42     3.09     9.85       1    174.0    230.0
+[ 39/43]  Mexico City Grand Prix                  43     3.22     6.73       1    147.0    193.0
+[ 40/43]  São Paulo Grand Prix                    44     4.06    16.36       1    172.0    360.0
+[ 41/43]  Las Vegas Grand Prix                    45     3.84    10.27       1    157.0    225.0
+[ 42/43]  Qatar Grand Prix                        46     3.59     8.68       1    150.0    190.0
+[ 43/43]  Abu Dhabi Grand Prix                    47     3.50     7.03       1    180.0    233.0
+
+Races evaluated:        43
+Mean MAE (position):    3.54
+Mean MAE (fantasy pts): 8.29
+Total lineup points:    6835.0
+Total optimal points:   10324.0
+Points left on table:   3489.0
+
+Season  Races  MAE Pos  MAE Pts    Lineup    Oracle     Left
+--------------------------------------------------------------
+  2024     19     3.45     7.67      3279      4536     1257
+  2025     24     3.61     8.79      3556      5788     2232
+
+Feature importances (fantasy pts model, final trained model):
+  qualifying_position_mean_last3                0.1398
+  position_mean_last5                           0.1383
+  team_constructor_standing_rank                0.1057
+  driver_vs_teammate_championship_gap           0.0495
+  circuit_position_mean_last3                   0.0481
+  position_mean_last3                           0.0460
+  team_recent_finish_mean_last3                 0.0453
+  practice_avg_best_5_rank                      0.0412
+  fantasy_points_mean_last3                     0.0365
+  team_position_mean_last5                      0.0355
+  driver_wet_vs_dry_position_delta              0.0330
+  team_qualifying_position_mean_last3           0.0288
+  weather_air_temp_mean                         0.0278
+  positions_gained_mean_last5                   0.0275
+  round_number                                  0.0254
+  weather_track_temp_mean                       0.0237
+  weather_practice_rain_fraction                0.0234
+  driver_vs_teammate_gap_last5                  0.0211
+  track_temp_deviation_from_circuit_mean        0.0202
+  circuit_historical_rain_rate                  0.0181
+  practice_best_lap_rank                        0.0177
+  position_std_last5                            0.0170
+  driver_races                                  0.0161
+  fantasy_points_trend_last5                    0.0144
+  is_sprint_weekend                             0.0000
+  driver_wet_session_count                      0.0000
+
+── fs=v3 pred=v3 opt=v4 ──
+Backtest run #64 — 48 events, 43 predictions, min_train=5
+            Event                                Train  MAE Pos  MAE Pts  Trades   Lineup  Optimal
+--------------------------------------------------------------------------------------------------
+[  1/43]  Miami Grand Prix                         5     3.40     7.28       0    194.0    258.0
+[  2/43]  Emilia Romagna Grand Prix                6     2.93     6.98       0    126.0    199.0
+[  3/43]  Monaco Grand Prix                        7     3.33     8.27       0    111.0    184.0
+[  4/43]  Canadian Grand Prix                      8     5.18    10.80       2     62.0    245.0
+[  5/43]  Spanish Grand Prix                       9     2.92     6.23       2    184.0    232.0
+[  6/43]  Austrian Grand Prix                     10     3.93    11.80       2    190.0    332.0
+[  7/43]  British Grand Prix                      11     4.02     8.46       1    133.0    188.0
+[  8/43]  Hungarian Grand Prix                    12     3.07     4.96       2    185.0    235.0
+[  9/43]  Belgian Grand Prix                      13     3.50     6.85       2    176.0    228.0
+[ 10/43]  Dutch Grand Prix                        14     2.68     4.58       2    184.0    222.0
+[ 11/43]  Italian Grand Prix                      15     2.44     5.73       1    200.0    250.0
+[ 12/43]  Azerbaijan Grand Prix                   16     3.72     8.30       0    148.0    250.0
+[ 13/43]  Singapore Grand Prix                    17     2.74     4.50       1    153.0    198.0
+[ 14/43]  United States Grand Prix                18     2.85     7.34       1    255.0    285.0
+[ 15/43]  Mexico City Grand Prix                  19     3.62     6.89       2    170.0    215.0
+[ 16/43]  São Paulo Grand Prix                    20     4.77    11.79       2    112.0    290.0
+[ 17/43]  Las Vegas Grand Prix                    21     3.17    10.03       0    214.0    284.0
+[ 18/43]  Qatar Grand Prix                        22     4.04     7.33       0    161.0    207.0
+[ 19/43]  Abu Dhabi Grand Prix                    23     3.33     7.54       0    202.0    234.0
+[ 20/43]  Australian Grand Prix                   24     4.13    10.48       0     86.0    232.0
+[ 21/43]  Chinese Grand Prix                      25     4.42    11.03       2    154.0    310.0
+[ 22/43]  Japanese Grand Prix                     26     3.14     5.49       2    152.0    193.0
+[ 23/43]  Bahrain Grand Prix                      27     3.35     8.69       0    225.0    293.0
+[ 24/43]  Saudi Arabian Grand Prix                28     2.42     6.13       1    130.0    210.0
+[ 25/43]  Miami Grand Prix                        29     2.39    11.51       2    187.0    287.0
+[ 26/43]  Emilia Romagna Grand Prix               30     3.15     7.03       0    184.0    240.0
+[ 27/43]  Monaco Grand Prix                       31     3.61     7.80       0     94.0    215.0
+[ 28/43]  Spanish Grand Prix                      32     3.56     8.53       0    194.0    267.0
+[ 29/43]  Canadian Grand Prix                     33     4.23     8.34       0    194.0    266.0
+[ 30/43]  Austrian Grand Prix                     34     3.72     9.71       0    159.0    259.0
+[ 31/43]  British Grand Prix                      35     4.26     9.62       3    155.0    249.0
+[ 32/43]  Belgian Grand Prix                      36     3.63     7.25       2    142.0    175.0
+[ 33/43]  Hungarian Grand Prix                    37     3.33     5.22       0    171.0    230.0
+[ 34/43]  Dutch Grand Prix                        38     5.04    12.50       0    175.0    293.0
+[ 35/43]  Italian Grand Prix                      39     2.70     6.63       0     86.0    224.0
+[ 36/43]  Azerbaijan Grand Prix                   40     4.40    10.16       2     29.0    207.0
+[ 37/43]  Singapore Grand Prix                    41     3.81     5.94       4    120.0    207.0
+[ 38/43]  United States Grand Prix                42     3.09     9.85       0    101.0    230.0
+[ 39/43]  Mexico City Grand Prix                  43     3.22     6.73       1    113.0    193.0
+[ 40/43]  São Paulo Grand Prix                    44     4.06    16.36       0    252.0    360.0
+[ 41/43]  Las Vegas Grand Prix                    45     3.84    10.27       0    155.0    225.0
+[ 42/43]  Qatar Grand Prix                        46     3.59     8.68       1    134.0    190.0
+[ 43/43]  Abu Dhabi Grand Prix                    47     3.50     7.03       0    180.0    233.0
+
+Races evaluated:        43
+Mean MAE (position):    3.54
+Mean MAE (fantasy pts): 8.29
+Total lineup points:    6732.0
+Total optimal points:   10324.0
+Points left on table:   3592.0
+
+Season  Races  MAE Pos  MAE Pts    Lineup    Oracle     Left
+--------------------------------------------------------------
+  2024     19     3.45     7.67      3160      4536     1376
+  2025     24     3.61     8.79      3572      5788     2216
+
+Feature importances (fantasy pts model, final trained model):
+  qualifying_position_mean_last3                0.1398
+  position_mean_last5                           0.1383
+  team_constructor_standing_rank                0.1057
+  driver_vs_teammate_championship_gap           0.0495
+  circuit_position_mean_last3                   0.0481
+  position_mean_last3                           0.0460
+  team_recent_finish_mean_last3                 0.0453
+  practice_avg_best_5_rank                      0.0412
+  fantasy_points_mean_last3                     0.0365
+  team_position_mean_last5                      0.0355
+  driver_wet_vs_dry_position_delta              0.0330
+  team_qualifying_position_mean_last3           0.0288
+  weather_air_temp_mean                         0.0278
+  positions_gained_mean_last5                   0.0275
+  round_number                                  0.0254
+  weather_track_temp_mean                       0.0237
+  weather_practice_rain_fraction                0.0234
+  driver_vs_teammate_gap_last5                  0.0211
+  track_temp_deviation_from_circuit_mean        0.0202
+  circuit_historical_rain_rate                  0.0181
+  practice_best_lap_rank                        0.0177
+  position_std_last5                            0.0170
+  driver_races                                  0.0161
+  fantasy_points_trend_last5                    0.0144
+  is_sprint_weekend                             0.0000
+  driver_wet_session_count                      0.0000
+
+── fs=v3 pred=v4 opt=v2 ──
+Backtest run #65 — 48 events, 43 predictions, min_train=5
+            Event                                Train  MAE Pos  MAE Pts  Trades   Lineup  Optimal
+--------------------------------------------------------------------------------------------------
+[  1/43]  Miami Grand Prix                         5    10.00     8.53       0    172.0    258.0
+[  2/43]  Emilia Romagna Grand Prix                6     6.95     6.90       0    153.0    199.0
+[  3/43]  Monaco Grand Prix                        7     7.94     9.21       2     44.0    184.0
+[  4/43]  Canadian Grand Prix                      8    12.15    11.16       0    126.0    245.0
+[  5/43]  Spanish Grand Prix                       9     8.20     6.64       0    189.0    232.0
+[  6/43]  Austrian Grand Prix                     10    10.85    11.24       0    183.0    332.0
+[  7/43]  British Grand Prix                      11     9.20     7.33       0    129.0    188.0
+[  8/43]  Hungarian Grand Prix                    12     8.55     5.14       0    150.0    235.0
+[  9/43]  Belgian Grand Prix                      13     7.68     6.82       0    158.0    228.0
+[ 10/43]  Dutch Grand Prix                        14     7.40     6.00       0    184.0    222.0
+[ 11/43]  Italian Grand Prix                      15     6.05     5.27       0    140.0    250.0
+[ 12/43]  Azerbaijan Grand Prix                   16     9.50     8.47       0    122.0    250.0
+[ 13/43]  Singapore Grand Prix                    17     6.75     4.18       0     61.0    198.0
+[ 14/43]  United States Grand Prix                18     8.15     8.63       0    164.0    285.0
+[ 15/43]  Mexico City Grand Prix                  19     8.95     6.74       0    100.0    215.0
+[ 16/43]  São Paulo Grand Prix                    20    10.25    12.48       0    107.0    290.0
+[ 17/43]  Las Vegas Grand Prix                    21     7.35     8.01       0    188.0    284.0
+[ 18/43]  Qatar Grand Prix                        22     9.85     7.86       0    131.0    207.0
+[ 19/43]  Abu Dhabi Grand Prix                    23     8.15     6.92       0     84.0    234.0
+[ 20/43]  Australian Grand Prix                   24    11.05    12.17       0    126.0    232.0
+[ 21/43]  Chinese Grand Prix                      25    11.20    11.12       0    197.0    310.0
+[ 22/43]  Japanese Grand Prix                     26    13.00     5.43       0    140.0    193.0
+[ 23/43]  Bahrain Grand Prix                      27    11.70     9.85       0    172.0    293.0
+[ 24/43]  Saudi Arabian Grand Prix                28    11.30     5.87       0    166.0    210.0
+[ 25/43]  Miami Grand Prix                        29    12.35    11.07       0    208.0    287.0
+[ 26/43]  Emilia Romagna Grand Prix               30    13.95     6.21       0    189.0    240.0
+[ 27/43]  Monaco Grand Prix                       31    12.80     8.60       0    143.0    215.0
+[ 28/43]  Spanish Grand Prix                      32    14.11     8.98       0    257.0    267.0
+[ 29/43]  Canadian Grand Prix                     33    14.55     8.78       0    220.0    266.0
+[ 30/43]  Austrian Grand Prix                     34    14.35     9.72       0    225.0    259.0
+[ 31/43]  British Grand Prix                      35    10.79     9.05       0    190.0    249.0
+[ 32/43]  Belgian Grand Prix                      36    10.55     6.53       0    172.0    175.0
+[ 33/43]  Hungarian Grand Prix                    37    11.45     5.51       0    196.0    230.0
+[ 34/43]  Dutch Grand Prix                        38    13.65    12.75       0    197.0    293.0
+[ 35/43]  Italian Grand Prix                      39     9.60     7.30       0    114.0    224.0
+[ 36/43]  Azerbaijan Grand Prix                   40    11.80    10.90       0     92.0    207.0
+[ 37/43]  Singapore Grand Prix                    41    10.50     6.50       0    148.0    207.0
+[ 38/43]  United States Grand Prix                42     6.00    10.25       0    186.0    230.0
+[ 39/43]  Mexico City Grand Prix                  43     5.65     7.05       0    157.0    193.0
+[ 40/43]  São Paulo Grand Prix                    44     6.35    16.81       0    198.0    360.0
+[ 41/43]  Las Vegas Grand Prix                    45     7.00     9.98       0    156.0    225.0
+[ 42/43]  Qatar Grand Prix                        46     6.20     8.10       0    113.0    190.0
+[ 43/43]  Abu Dhabi Grand Prix                    47     7.95     7.88       0    216.0    233.0
+
+Races evaluated:        43
+Mean MAE (position):    9.81
+Mean MAE (fantasy pts): 8.46
+Total lineup points:    6763.0
+Total optimal points:   10324.0
+Points left on table:   3561.0
+
+Season  Races  MAE Pos  MAE Pts    Lineup    Oracle     Left
+--------------------------------------------------------------
+  2024     19     8.63     7.76      2585      4536     1951
+  2025     24    10.74     9.02      4178      5788     1610
+
+Feature importances (fantasy pts model, final trained model):
+  position_mean_last5                           0.0763
+  position_mean_last3                           0.0635
+  circuit_position_mean_last3                   0.0609
+  team_recent_finish_mean_last3                 0.0528
+  team_qualifying_position_mean_last3           0.0498
+  driver_races                                  0.0497
+  team_constructor_standing_rank                0.0492
+  fantasy_points_trend_last5                    0.0485
+  practice_avg_best_5_rank                      0.0477
+  practice_best_lap_rank                        0.0473
+  driver_wet_vs_dry_position_delta              0.0453
+  fantasy_points_mean_last3                     0.0440
+  round_number                                  0.0434
+  driver_wet_session_count                      0.0427
+  team_position_mean_last5                      0.0396
+  position_std_last5                            0.0380
+  qualifying_position_mean_last3                0.0375
+  positions_gained_mean_last5                   0.0368
+  driver_vs_teammate_gap_last5                  0.0353
+  driver_vs_teammate_championship_gap           0.0319
+  weather_air_temp_mean                         0.0263
+  weather_track_temp_mean                       0.0203
+  track_temp_deviation_from_circuit_mean        0.0131
+  is_sprint_weekend                             0.0000
+  weather_practice_rain_fraction                0.0000
+  circuit_historical_rain_rate                  0.0000
+
+── fs=v3 pred=v4 opt=v3 ──
+Backtest run #66 — 48 events, 43 predictions, min_train=5
+            Event                                Train  MAE Pos  MAE Pts  Trades   Lineup  Optimal
+--------------------------------------------------------------------------------------------------
+[  1/43]  Miami Grand Prix                         5    10.00     8.53       0    130.0    258.0
+[  2/43]  Emilia Romagna Grand Prix                6     6.95     6.90       2    135.0    199.0
+[  3/43]  Monaco Grand Prix                        7     7.94     9.21       0    114.0    184.0
+[  4/43]  Canadian Grand Prix                      8    12.15    11.16       2     37.0    245.0
+[  5/43]  Spanish Grand Prix                       9     8.20     6.64       2    189.0    232.0
+[  6/43]  Austrian Grand Prix                     10    10.85    11.24       0    129.0    332.0
+[  7/43]  British Grand Prix                      11     9.20     7.33       0    128.0    188.0
+[  8/43]  Hungarian Grand Prix                    12     8.55     5.14       0    201.0    235.0
+[  9/43]  Belgian Grand Prix                      13     7.68     6.82       1    185.0    228.0
+[ 10/43]  Dutch Grand Prix                        14     7.40     6.00       1    167.0    222.0
+[ 11/43]  Italian Grand Prix                      15     6.05     5.27       0    204.0    250.0
+[ 12/43]  Azerbaijan Grand Prix                   16     9.50     8.47       1    183.0    250.0
+[ 13/43]  Singapore Grand Prix                    17     6.75     4.18       1    192.0    198.0
+[ 14/43]  United States Grand Prix                18     8.15     8.63       1    232.0    285.0
+[ 15/43]  Mexico City Grand Prix                  19     8.95     6.74       1    203.0    215.0
+[ 16/43]  São Paulo Grand Prix                    20    10.25    12.48       1    120.0    290.0
+[ 17/43]  Las Vegas Grand Prix                    21     7.35     8.01       1    215.0    284.0
+[ 18/43]  Qatar Grand Prix                        22     9.85     7.86       1    174.0    207.0
+[ 19/43]  Abu Dhabi Grand Prix                    23     8.15     6.92       1    164.0    234.0
+[ 20/43]  Australian Grand Prix                   24    11.05    12.17       0     71.0    232.0
+[ 21/43]  Chinese Grand Prix                      25    11.20    11.12       0    166.0    310.0
+[ 22/43]  Japanese Grand Prix                     26    13.00     5.43       2    161.0    193.0
+[ 23/43]  Bahrain Grand Prix                      27    11.70     9.85       0    167.0    293.0
+[ 24/43]  Saudi Arabian Grand Prix                28    11.30     5.87       2    181.0    210.0
+[ 25/43]  Miami Grand Prix                        29    12.35    11.07       3    170.0    287.0
+[ 26/43]  Emilia Romagna Grand Prix               30    13.95     6.21       1    165.0    240.0
+[ 27/43]  Monaco Grand Prix                       31    12.80     8.60       0    110.0    215.0
+[ 28/43]  Spanish Grand Prix                      32    14.11     8.98       2    216.0    267.0
+[ 29/43]  Canadian Grand Prix                     33    14.55     8.78       1    177.0    266.0
+[ 30/43]  Austrian Grand Prix                     34    14.35     9.72       0    211.0    259.0
+[ 31/43]  British Grand Prix                      35    10.79     9.05       1    161.0    249.0
+[ 32/43]  Belgian Grand Prix                      36    10.55     6.53       1    148.0    175.0
+[ 33/43]  Hungarian Grand Prix                    37    11.45     5.51       2    173.0    230.0
+[ 34/43]  Dutch Grand Prix                        38    13.65    12.75       1    186.0    293.0
+[ 35/43]  Italian Grand Prix                      39     9.60     7.30       1    122.0    224.0
+[ 36/43]  Azerbaijan Grand Prix                   40    11.80    10.90       1     62.0    207.0
+[ 37/43]  Singapore Grand Prix                    41    10.50     6.50       1    132.0    207.0
+[ 38/43]  United States Grand Prix                42     6.00    10.25       0    199.0    230.0
+[ 39/43]  Mexico City Grand Prix                  43     5.65     7.05       1    118.0    193.0
+[ 40/43]  São Paulo Grand Prix                    44     6.35    16.81       1    211.0    360.0
+[ 41/43]  Las Vegas Grand Prix                    45     7.00     9.98       2    157.0    225.0
+[ 42/43]  Qatar Grand Prix                        46     6.20     8.10       1    150.0    190.0
+[ 43/43]  Abu Dhabi Grand Prix                    47     7.95     7.88       1    154.0    233.0
+
+Races evaluated:        43
+Mean MAE (position):    9.81
+Mean MAE (fantasy pts): 8.46
+Total lineup points:    6870.0
+Total optimal points:   10324.0
+Points left on table:   3454.0
+
+Season  Races  MAE Pos  MAE Pts    Lineup    Oracle     Left
+--------------------------------------------------------------
+  2024     19     8.63     7.76      3102      4536     1434
+  2025     24    10.74     9.02      3768      5788     2020
+
+Feature importances (fantasy pts model, final trained model):
+  position_mean_last5                           0.0763
+  position_mean_last3                           0.0635
+  circuit_position_mean_last3                   0.0609
+  team_recent_finish_mean_last3                 0.0528
+  team_qualifying_position_mean_last3           0.0498
+  driver_races                                  0.0497
+  team_constructor_standing_rank                0.0492
+  fantasy_points_trend_last5                    0.0485
+  practice_avg_best_5_rank                      0.0477
+  practice_best_lap_rank                        0.0473
+  driver_wet_vs_dry_position_delta              0.0453
+  fantasy_points_mean_last3                     0.0440
+  round_number                                  0.0434
+  driver_wet_session_count                      0.0427
+  team_position_mean_last5                      0.0396
+  position_std_last5                            0.0380
+  qualifying_position_mean_last3                0.0375
+  positions_gained_mean_last5                   0.0368
+  driver_vs_teammate_gap_last5                  0.0353
+  driver_vs_teammate_championship_gap           0.0319
+  weather_air_temp_mean                         0.0263
+  weather_track_temp_mean                       0.0203
+  track_temp_deviation_from_circuit_mean        0.0131
+  is_sprint_weekend                             0.0000
+  weather_practice_rain_fraction                0.0000
+  circuit_historical_rain_rate                  0.0000
+
+── fs=v3 pred=v4 opt=v4 ──
+Backtest run #67 — 48 events, 43 predictions, min_train=5
+            Event                                Train  MAE Pos  MAE Pts  Trades   Lineup  Optimal
+--------------------------------------------------------------------------------------------------
+[  1/43]  Miami Grand Prix                         5    10.00     8.53       0    187.0    258.0
+[  2/43]  Emilia Romagna Grand Prix                6     6.95     6.90       1    159.0    199.0
+[  3/43]  Monaco Grand Prix                        7     7.94     9.21       0    119.0    184.0
+[  4/43]  Canadian Grand Prix                      8    12.15    11.16       3     73.0    245.0
+[  5/43]  Spanish Grand Prix                       9     8.20     6.64       2    161.0    232.0
+[  6/43]  Austrian Grand Prix                     10    10.85    11.24       1    129.0    332.0
+[  7/43]  British Grand Prix                      11     9.20     7.33       0    102.0    188.0
+[  8/43]  Hungarian Grand Prix                    12     8.55     5.14       2    182.0    235.0
+[  9/43]  Belgian Grand Prix                      13     7.68     6.82       2    170.0    228.0
+[ 10/43]  Dutch Grand Prix                        14     7.40     6.00       1    154.0    222.0
+[ 11/43]  Italian Grand Prix                      15     6.05     5.27       1    214.0    250.0
+[ 12/43]  Azerbaijan Grand Prix                   16     9.50     8.47       1    226.0    250.0
+[ 13/43]  Singapore Grand Prix                    17     6.75     4.18       1    157.0    198.0
+[ 14/43]  United States Grand Prix                18     8.15     8.63       1    227.0    285.0
+[ 15/43]  Mexico City Grand Prix                  19     8.95     6.74       2    191.0    215.0
+[ 16/43]  São Paulo Grand Prix                    20    10.25    12.48       0    120.0    290.0
+[ 17/43]  Las Vegas Grand Prix                    21     7.35     8.01       2    206.0    284.0
+[ 18/43]  Qatar Grand Prix                        22     9.85     7.86       0    157.0    207.0
+[ 19/43]  Abu Dhabi Grand Prix                    23     8.15     6.92       0    158.0    234.0
+[ 20/43]  Australian Grand Prix                   24    11.05    12.17       0     77.0    232.0
+[ 21/43]  Chinese Grand Prix                      25    11.20    11.12       1    164.0    310.0
+[ 22/43]  Japanese Grand Prix                     26    13.00     5.43       1    136.0    193.0
+[ 23/43]  Bahrain Grand Prix                      27    11.70     9.85       1    226.0    293.0
+[ 24/43]  Saudi Arabian Grand Prix                28    11.30     5.87       1    145.0    210.0
+[ 25/43]  Miami Grand Prix                        29    12.35    11.07       0    202.0    287.0
+[ 26/43]  Emilia Romagna Grand Prix               30    13.95     6.21       0    171.0    240.0
+[ 27/43]  Monaco Grand Prix                       31    12.80     8.60       0    130.0    215.0
+[ 28/43]  Spanish Grand Prix                      32    14.11     8.98       0    184.0    267.0
+[ 29/43]  Canadian Grand Prix                     33    14.55     8.78       0    180.0    266.0
+[ 30/43]  Austrian Grand Prix                     34    14.35     9.72       0    171.0    259.0
+[ 31/43]  British Grand Prix                      35    10.79     9.05       0    154.0    249.0
+[ 32/43]  Belgian Grand Prix                      36    10.55     6.53       2    133.0    175.0
+[ 33/43]  Hungarian Grand Prix                    37    11.45     5.51       2    202.0    230.0
+[ 34/43]  Dutch Grand Prix                        38    13.65    12.75       2    201.0    293.0
+[ 35/43]  Italian Grand Prix                      39     9.60     7.30       2     68.0    224.0
+[ 36/43]  Azerbaijan Grand Prix                   40    11.80    10.90       2     10.0    207.0
+[ 37/43]  Singapore Grand Prix                    41    10.50     6.50       3    154.0    207.0
+[ 38/43]  United States Grand Prix                42     6.00    10.25       2    146.0    230.0
+[ 39/43]  Mexico City Grand Prix                  43     5.65     7.05       0    116.0    193.0
+[ 40/43]  São Paulo Grand Prix                    44     6.35    16.81       2    245.0    360.0
+[ 41/43]  Las Vegas Grand Prix                    45     7.00     9.98       0    140.0    225.0
+[ 42/43]  Qatar Grand Prix                        46     6.20     8.10       2    120.0    190.0
+[ 43/43]  Abu Dhabi Grand Prix                    47     7.95     7.88       2     84.0    233.0
+
+Races evaluated:        43
+Mean MAE (position):    9.81
+Mean MAE (fantasy pts): 8.46
+Total lineup points:    6651.0
+Total optimal points:   10324.0
+Points left on table:   3673.0
+
+Season  Races  MAE Pos  MAE Pts    Lineup    Oracle     Left
+--------------------------------------------------------------
+  2024     19     8.63     7.76      3092      4536     1444
+  2025     24    10.74     9.02      3559      5788     2229
+
+Feature importances (fantasy pts model, final trained model):
+  position_mean_last5                           0.0763
+  position_mean_last3                           0.0635
+  circuit_position_mean_last3                   0.0609
+  team_recent_finish_mean_last3                 0.0528
+  team_qualifying_position_mean_last3           0.0498
+  driver_races                                  0.0497
+  team_constructor_standing_rank                0.0492
+  fantasy_points_trend_last5                    0.0485
+  practice_avg_best_5_rank                      0.0477
+  practice_best_lap_rank                        0.0473
+  driver_wet_vs_dry_position_delta              0.0453
+  fantasy_points_mean_last3                     0.0440
+  round_number                                  0.0434
+  driver_wet_session_count                      0.0427
+  team_position_mean_last5                      0.0396
+  position_std_last5                            0.0380
+  qualifying_position_mean_last3                0.0375
+  positions_gained_mean_last5                   0.0368
+  driver_vs_teammate_gap_last5                  0.0353
+  driver_vs_teammate_championship_gap           0.0319
+  weather_air_temp_mean                         0.0263
+  weather_track_temp_mean                       0.0203
+  track_temp_deviation_from_circuit_mean        0.0131
+  is_sprint_weekend                             0.0000
+  weather_practice_rain_fraction                0.0000
+  circuit_historical_rain_rate                  0.0000
+(venv) joes-mac-mini:f1_data joewilkinson$

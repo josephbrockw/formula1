@@ -1,0 +1,218 @@
+Driver Name,Team,Driver Value,Race,Event Type,Scoring Item,Frequency,Position,Points,Race Total,Season Total
+Kimi Antonelli,Mercedes,$23.8M,Australia,race,Race Position,,2,18,32,100
+Kimi Antonelli,Mercedes,$23.8M,Australia,qualifying,Qualifying Position,,2,9,32,100
+Kimi Antonelli,Mercedes,$23.8M,Australia,race,Race Overtake Bonus,5,,5,32,100
+Kimi Antonelli,Mercedes,$23.8M,China,sprint,Sprint Positions Lost,3,,-3,68,100
+Kimi Antonelli,Mercedes,$23.8M,China,sprint,Sprint Overtake Bonus,10,,10,68,100
+Kimi Antonelli,Mercedes,$23.8M,China,race,Driver Of The Day,,,10,68,100
+Kimi Antonelli,Mercedes,$23.8M,China,race,Race Position,,1,25,68,100
+Kimi Antonelli,Mercedes,$23.8M,China,qualifying,Qualifying Position,,1,10,68,100
+Kimi Antonelli,Mercedes,$23.8M,China,sprint,Sprint Position,,5,4,68,100
+Kimi Antonelli,Mercedes,$23.8M,China,race,Race Fastest Lap,,,10,68,100
+Kimi Antonelli,Mercedes,$23.8M,China,race,Race Overtake Bonus,2,,2,68,100
+George Russell,Mercedes,$28M,Australia,race,Race Position,,1,25,39,84
+George Russell,Mercedes,$28M,Australia,qualifying,Qualifying Position,,1,10,39,84
+George Russell,Mercedes,$28M,Australia,race,Race Overtake Bonus,4,,4,39,84
+George Russell,Mercedes,$28M,China,sprint,Sprint Overtake Bonus,4,,4,45,84
+George Russell,Mercedes,$28M,China,race,Race Position,,2,18,45,84
+George Russell,Mercedes,$28M,China,qualifying,Qualifying Position,,2,9,45,84
+George Russell,Mercedes,$28M,China,sprint,Sprint Position,,1,8,45,84
+George Russell,Mercedes,$28M,China,race,Race Overtake Bonus,6,,6,45,84
+Charles Leclerc,Ferrari,$23.4M,Australia,race,Race Position,,3,15,29,80
+Charles Leclerc,Ferrari,$23.4M,Australia,qualifying,Qualifying Position,,4,7,29,80
+Charles Leclerc,Ferrari,$23.4M,Australia,race,Race Positions Gained,1,,1,29,80
+Charles Leclerc,Ferrari,$23.4M,Australia,race,Race Overtake Bonus,6,,6,29,80
+Charles Leclerc,Ferrari,$23.4M,China,sprint,Sprint Fastest lap,,,5,51,80
+Charles Leclerc,Ferrari,$23.4M,China,sprint,Sprint Positions Gained,4,,4,51,80
+Charles Leclerc,Ferrari,$23.4M,China,sprint,Sprint Overtake Bonus,5,,5,51,80
+Charles Leclerc,Ferrari,$23.4M,China,race,Race Position,,4,12,51,80
+Charles Leclerc,Ferrari,$23.4M,China,qualifying,Qualifying Position,,4,7,51,80
+Charles Leclerc,Ferrari,$23.4M,China,sprint,Sprint Position,,2,7,51,80
+Charles Leclerc,Ferrari,$23.4M,China,race,Race Overtake Bonus,11,,11,51,80
+Lewis Hamilton,Ferrari,$22.9M,Australia,race,Race Position,,4,12,25,73
+Lewis Hamilton,Ferrari,$22.9M,Australia,qualifying,Qualifying Position,,7,4,25,73
+Lewis Hamilton,Ferrari,$22.9M,Australia,race,Race Positions Gained,3,,3,25,73
+Lewis Hamilton,Ferrari,$22.9M,Australia,race,Race Overtake Bonus,6,,6,25,73
+Lewis Hamilton,Ferrari,$22.9M,China,sprint,Sprint Positions Gained,1,,1,48,73
+Lewis Hamilton,Ferrari,$22.9M,China,sprint,Sprint Overtake Bonus,8,,8,48,73
+Lewis Hamilton,Ferrari,$22.9M,China,race,Race Position,,3,15,48,73
+Lewis Hamilton,Ferrari,$22.9M,China,qualifying,Qualifying Position,,3,8,48,73
+Lewis Hamilton,Ferrari,$22.9M,China,sprint,Sprint Position,,3,6,48,73
+Lewis Hamilton,Ferrari,$22.9M,China,race,Race Overtake Bonus,10,,10,48,73
+Max Verstappen,Red Bull Racing,$28.1M,Australia,race,Driver Of The Day,,,10,50,64
+Max Verstappen,Red Bull Racing,$28.1M,Australia,race,Race Position,,6,8,50,64
+Max Verstappen,Red Bull Racing,$28.1M,Australia,race,QF Not Classified,,,-5,50,64
+Max Verstappen,Red Bull Racing,$28.1M,Australia,race,Race Positions Gained,14,,14,50,64
+Max Verstappen,Red Bull Racing,$28.1M,Australia,race,Race Fastest Lap,,,10,50,64
+Max Verstappen,Red Bull Racing,$28.1M,Australia,race,Race Overtake Bonus,13,,13,50,64
+Max Verstappen,Red Bull Racing,$28.1M,China,sprint,Sprint Positions Lost,1,,-1,14,64
+Max Verstappen,Red Bull Racing,$28.1M,China,sprint,Sprint Overtake Bonus,16,,16,14,64
+Max Verstappen,Red Bull Racing,$28.1M,China,qualifying,Qualifying Position,,8,3,14,64
+Max Verstappen,Red Bull Racing,$28.1M,China,sprint,Sprint Position,,9,0,14,64
+Max Verstappen,Red Bull Racing,$28.1M,China,race,Race Not Classified,,,-20,14,64
+Max Verstappen,Red Bull Racing,$28.1M,China,race,Race Overtake Bonus,16,,16,14,64
+Oliver Bearman,Haas F1 Team,$8.6M,Australia,race,Race Position,,7,6,20,54
+Oliver Bearman,Haas F1 Team,$8.6M,Australia,qualifying,Qualifying Position,,12,0,20,54
+Oliver Bearman,Haas F1 Team,$8.6M,Australia,race,Race Positions Gained,5,,5,20,54
+Oliver Bearman,Haas F1 Team,$8.6M,Australia,race,Race Overtake Bonus,9,,9,20,54
+Oliver Bearman,Haas F1 Team,$8.6M,China,sprint,Sprint Positions Gained,1,,1,34,54
+Oliver Bearman,Haas F1 Team,$8.6M,China,sprint,Sprint Overtake Bonus,3,,3,34,54
+Oliver Bearman,Haas F1 Team,$8.6M,China,race,Race Position,,5,10,34,54
+Oliver Bearman,Haas F1 Team,$8.6M,China,qualifying,Qualifying Position,,10,1,34,54
+Oliver Bearman,Haas F1 Team,$8.6M,China,sprint,Sprint Position,,8,1,34,54
+Oliver Bearman,Haas F1 Team,$8.6M,China,race,Race Positions Gained,5,,5,34,54
+Oliver Bearman,Haas F1 Team,$8.6M,China,race,Race Overtake Bonus,13,,13,34,54
+Liam Lawson,Racing Bulls,$6.9M,Australia,race,Race Position,,13,0,5,40
+Liam Lawson,Racing Bulls,$6.9M,Australia,qualifying,Qualifying Position,,8,3,5,40
+Liam Lawson,Racing Bulls,$6.9M,Australia,race,Race Positions Lost,5,,-5,5,40
+Liam Lawson,Racing Bulls,$6.9M,Australia,race,Race Overtake Bonus,7,,7,5,40
+Liam Lawson,Racing Bulls,$6.9M,China,sprint,Sprint Positions Gained,6,,6,35,40
+Liam Lawson,Racing Bulls,$6.9M,China,sprint,Sprint Overtake Bonus,6,,6,35,40
+Liam Lawson,Racing Bulls,$6.9M,China,race,Race Position,,7,6,35,40
+Liam Lawson,Racing Bulls,$6.9M,China,qualifying,Qualifying Position,,14,0,35,40
+Liam Lawson,Racing Bulls,$6.9M,China,sprint,Sprint Position,,7,2,35,40
+Liam Lawson,Racing Bulls,$6.9M,China,race,Race Positions Gained,7,,7,35,40
+Liam Lawson,Racing Bulls,$6.9M,China,race,Race Overtake Bonus,8,,8,35,40
+Carlos Sainz,Williams,$12.2M,Australia,race,Race Position,,15,0,9,37
+Carlos Sainz,Williams,$12.2M,Australia,race,QF Not Classified,,,-5,9,37
+Carlos Sainz,Williams,$12.2M,Australia,race,Race Positions Gained,6,,6,9,37
+Carlos Sainz,Williams,$12.2M,Australia,race,Race Overtake Bonus,8,,8,9,37
+Carlos Sainz,Williams,$12.2M,China,sprint,Sprint Positions Gained,5,,5,28,37
+Carlos Sainz,Williams,$12.2M,China,sprint,Sprint Overtake Bonus,7,,7,28,37
+Carlos Sainz,Williams,$12.2M,China,race,Race Position,,9,2,28,37
+Carlos Sainz,Williams,$12.2M,China,qualifying,Qualifying Position,,17,0,28,37
+Carlos Sainz,Williams,$12.2M,China,sprint,Sprint Position,,12,0,28,37
+Carlos Sainz,Williams,$12.2M,China,race,Race Positions Gained,8,,8,28,37
+Carlos Sainz,Williams,$12.2M,China,race,Race Overtake Bonus,6,,6,28,37
+Esteban Ocon,Haas F1 Team,$8.5M,Australia,race,Race Position,,11,0,9,33
+Esteban Ocon,Haas F1 Team,$8.5M,Australia,qualifying,Qualifying Position,,13,0,9,33
+Esteban Ocon,Haas F1 Team,$8.5M,Australia,race,Race Positions Gained,2,,2,9,33
+Esteban Ocon,Haas F1 Team,$8.5M,Australia,race,Race Overtake Bonus,7,,7,9,33
+Esteban Ocon,Haas F1 Team,$8.5M,China,sprint,Sprint Positions Gained,2,,2,24,33
+Esteban Ocon,Haas F1 Team,$8.5M,China,sprint,Sprint Overtake Bonus,7,,7,24,33
+Esteban Ocon,Haas F1 Team,$8.5M,China,race,Race Position,,14,0,24,33
+Esteban Ocon,Haas F1 Team,$8.5M,China,qualifying,Qualifying Position,,13,0,24,33
+Esteban Ocon,Haas F1 Team,$8.5M,China,sprint,Sprint Position,,10,0,24,33
+Esteban Ocon,Haas F1 Team,$8.5M,China,race,Race Positions Lost,1,,-1,24,33
+Esteban Ocon,Haas F1 Team,$8.5M,China,race,Race Overtake Bonus,16,,16,24,33
+Pierre Gasly,Alpine,$12.8M,Australia,race,Race Position,,10,1,11,31
+Pierre Gasly,Alpine,$12.8M,Australia,qualifying,Qualifying Position,,14,0,11,31
+Pierre Gasly,Alpine,$12.8M,Australia,race,Race Positions Gained,4,,4,11,31
+Pierre Gasly,Alpine,$12.8M,Australia,race,Race Overtake Bonus,6,,6,11,31
+Pierre Gasly,Alpine,$12.8M,China,sprint,Sprint Positions Lost,4,,-4,20,31
+Pierre Gasly,Alpine,$12.8M,China,sprint,Sprint Overtake Bonus,4,,4,20,31
+Pierre Gasly,Alpine,$12.8M,China,race,Race Position,,6,8,20,31
+Pierre Gasly,Alpine,$12.8M,China,qualifying,Qualifying Position,,7,4,20,31
+Pierre Gasly,Alpine,$12.8M,China,sprint,Sprint Position,,11,0,20,31
+Pierre Gasly,Alpine,$12.8M,China,race,Race Positions Gained,1,,1,20,31
+Pierre Gasly,Alpine,$12.8M,China,race,Race Overtake Bonus,7,,7,20,31
+Sergio Perez,Cadillac,$6.4M,Australia,race,Race Position,,16,0,4,24
+Sergio Perez,Cadillac,$6.4M,Australia,qualifying,Qualifying Position,,18,0,4,24
+Sergio Perez,Cadillac,$6.4M,Australia,race,Race Positions Gained,2,,2,4,24
+Sergio Perez,Cadillac,$6.4M,Australia,race,Race Overtake Bonus,2,,2,4,24
+Sergio Perez,Cadillac,$6.4M,China,sprint,Sprint Positions Gained,2,,2,20,24
+Sergio Perez,Cadillac,$6.4M,China,sprint,Sprint Overtake Bonus,7,,7,20,24
+Sergio Perez,Cadillac,$6.4M,China,race,Race Position,,15,0,20,24
+Sergio Perez,Cadillac,$6.4M,China,qualifying,Qualifying Position,,22,0,20,24
+Sergio Perez,Cadillac,$6.4M,China,sprint,Sprint Position,,19,0,20,24
+Sergio Perez,Cadillac,$6.4M,China,race,Race Positions Gained,6,,6,20,24
+Sergio Perez,Cadillac,$6.4M,China,race,Race Overtake Bonus,5,,5,20,24
+Franco Colapinto,Alpine,$7M,Australia,race,Race Position,,14,0,6,24
+Franco Colapinto,Alpine,$7M,Australia,qualifying,Qualifying Position,,16,0,6,24
+Franco Colapinto,Alpine,$7M,Australia,race,Race Positions Gained,2,,2,6,24
+Franco Colapinto,Alpine,$7M,Australia,race,Race Overtake Bonus,4,,4,6,24
+Franco Colapinto,Alpine,$7M,China,sprint,Sprint Positions Gained,2,,2,18,24
+Franco Colapinto,Alpine,$7M,China,sprint,Sprint Overtake Bonus,7,,7,18,24
+Franco Colapinto,Alpine,$7M,China,race,Race Position,,10,1,18,24
+Franco Colapinto,Alpine,$7M,China,qualifying,Qualifying Position,,12,0,18,24
+Franco Colapinto,Alpine,$7M,China,sprint,Sprint Position,,14,0,18,24
+Franco Colapinto,Alpine,$7M,China,race,Race Positions Gained,2,,2,18,24
+Franco Colapinto,Alpine,$7M,China,race,Race Overtake Bonus,6,,6,18,24
+Arvid Lindblad,Racing Bulls,$7.4M,Australia,race,Race Position,,8,4,15,22
+Arvid Lindblad,Racing Bulls,$7.4M,Australia,qualifying,Qualifying Position,,9,2,15,22
+Arvid Lindblad,Racing Bulls,$7.4M,Australia,race,Race Positions Gained,1,,1,15,22
+Arvid Lindblad,Racing Bulls,$7.4M,Australia,race,Race Overtake Bonus,8,,8,15,22
+Arvid Lindblad,Racing Bulls,$7.4M,China,sprint,Sprint Overtake Bonus,6,,6,7,22
+Arvid Lindblad,Racing Bulls,$7.4M,China,race,Race Position,,12,0,7,22
+Arvid Lindblad,Racing Bulls,$7.4M,China,qualifying,Qualifying Position,,15,0,7,22
+Arvid Lindblad,Racing Bulls,$7.4M,China,race,Race Positions Gained,3,,3,7,22
+Arvid Lindblad,Racing Bulls,$7.4M,China,race,Race Overtake Bonus,8,,8,7,22
+Arvid Lindblad,Racing Bulls,$7.4M,China,sprint,Sprint Not Classified,,,-10,7,22
+Isack Hadjar,Red Bull Racing,$13.9M,Australia,qualifying,Qualifying Position,,3,8,-8,11
+Isack Hadjar,Red Bull Racing,$13.9M,Australia,race,Race Not Classified,,,-20,-8,11
+Isack Hadjar,Red Bull Racing,$13.9M,Australia,race,Race Overtake Bonus,4,,4,-8,11
+Isack Hadjar,Red Bull Racing,$13.9M,China,sprint,Sprint Positions Lost,5,,-5,19,11
+Isack Hadjar,Red Bull Racing,$13.9M,China,sprint,Sprint Overtake Bonus,8,,8,19,11
+Isack Hadjar,Red Bull Racing,$13.9M,China,race,Race Position,,8,4,19,11
+Isack Hadjar,Red Bull Racing,$13.9M,China,qualifying,Qualifying Position,,9,2,19,11
+Isack Hadjar,Red Bull Racing,$13.9M,China,sprint,Sprint Position,,15,0,19,11
+Isack Hadjar,Red Bull Racing,$13.9M,China,race,Race Positions Gained,1,,1,19,11
+Isack Hadjar,Red Bull Racing,$13.9M,China,race,Race Overtake Bonus,9,,9,19,11
+Lando Norris,McLaren,$26.8M,Australia,race,Race Position,,5,10,21,11
+Lando Norris,McLaren,$26.8M,Australia,qualifying,Qualifying Position,,6,5,21,11
+Lando Norris,McLaren,$26.8M,Australia,race,Race Positions Gained,1,,1,21,11
+Lando Norris,McLaren,$26.8M,Australia,race,Race Overtake Bonus,5,,5,21,11
+Lando Norris,McLaren,$26.8M,China,sprint,Sprint Positions Lost,1,,-1,-10,11
+Lando Norris,McLaren,$26.8M,China,sprint,Sprint Overtake Bonus,1,,1,-10,11
+Lando Norris,McLaren,$26.8M,China,qualifying,Qualifying Position,,6,5,-10,11
+Lando Norris,McLaren,$26.8M,China,sprint,Sprint Position,,4,5,-10,11
+Lando Norris,McLaren,$26.8M,China,race,Race Not Classified,,,-20,-10,11
+Alexander Albon,Williams,$10.8M,Australia,race,Race Position,,12,0,8,1
+Alexander Albon,Williams,$10.8M,Australia,qualifying,Qualifying Position,,15,0,8,1
+Alexander Albon,Williams,$10.8M,Australia,race,Race Positions Gained,3,,3,8,1
+Alexander Albon,Williams,$10.8M,Australia,race,Race Overtake Bonus,5,,5,8,1
+Alexander Albon,Williams,$10.8M,China,sprint,Sprint Positions Gained,6,,6,-7,1
+Alexander Albon,Williams,$10.8M,China,sprint,Sprint Overtake Bonus,7,,7,-7,1
+Alexander Albon,Williams,$10.8M,China,qualifying,Qualifying Position,,18,0,-7,1
+Alexander Albon,Williams,$10.8M,China,sprint,Sprint Position,,16,0,-7,1
+Alexander Albon,Williams,$10.8M,China,race,Race Not Classified,,,-20,-7,1
+Gabriel Bortoleto,Audi,$6.4M,Australia,race,Race Position,,9,2,13,-1
+Gabriel Bortoleto,Audi,$6.4M,Australia,qualifying,Qualifying Position,,10,1,13,-1
+Gabriel Bortoleto,Audi,$6.4M,Australia,race,Race Positions Gained,1,,1,13,-1
+Gabriel Bortoleto,Audi,$6.4M,Australia,race,Race Overtake Bonus,9,,9,13,-1
+Gabriel Bortoleto,Audi,$6.4M,China,sprint,Sprint Positions Gained,1,,1,-14,-1
+Gabriel Bortoleto,Audi,$6.4M,China,sprint,Sprint Overtake Bonus,5,,5,-14,-1
+Gabriel Bortoleto,Audi,$6.4M,China,qualifying,Qualifying Position,,16,0,-14,-1
+Gabriel Bortoleto,Audi,$6.4M,China,sprint,Sprint Position,,13,0,-14,-1
+Gabriel Bortoleto,Audi,$6.4M,China,race,Race Not Classified,,,-20,-14,-1
+Valtteri Bottas,Cadillac,$4.7M,Australia,qualifying,Qualifying Position,,19,0,-16,-13
+Valtteri Bottas,Cadillac,$4.7M,Australia,race,Race Not Classified,,,-20,-16,-13
+Valtteri Bottas,Cadillac,$4.7M,Australia,race,Race Overtake Bonus,4,,4,-16,-13
+Valtteri Bottas,Cadillac,$4.7M,China,sprint,Sprint Overtake Bonus,2,,2,3,-13
+Valtteri Bottas,Cadillac,$4.7M,China,race,Race Position,,13,0,3,-13
+Valtteri Bottas,Cadillac,$4.7M,China,qualifying,Qualifying Position,,20,0,3,-13
+Valtteri Bottas,Cadillac,$4.7M,China,race,Race Positions Gained,6,,6,3,-13
+Valtteri Bottas,Cadillac,$4.7M,China,race,Race Overtake Bonus,5,,5,3,-13
+Valtteri Bottas,Cadillac,$4.7M,China,sprint,Sprint Not Classified,,,-10,3,-13
+Nico Hulkenberg,Audi,$5.6M,Australia,qualifying,Qualifying Position,,11,0,-20,-13
+Nico Hulkenberg,Audi,$5.6M,Australia,race,Race Not Classified,,,-20,-20,-13
+Nico Hulkenberg,Audi,$5.6M,China,sprint,Sprint Overtake Bonus,7,,7,7,-13
+Nico Hulkenberg,Audi,$5.6M,China,race,Race Position,,11,0,7,-13
+Nico Hulkenberg,Audi,$5.6M,China,qualifying,Qualifying Position,,11,0,7,-13
+Nico Hulkenberg,Audi,$5.6M,China,race,Race Overtake Bonus,10,,10,7,-13
+Nico Hulkenberg,Audi,$5.6M,China,sprint,Sprint Not Classified,,,-10,7,-13
+Fernando Alonso,Aston Martin,$8.8M,Australia,qualifying,Qualifying Position,,17,0,-14,-21
+Fernando Alonso,Aston Martin,$8.8M,Australia,race,Race Not Classified,,,-20,-14,-21
+Fernando Alonso,Aston Martin,$8.8M,Australia,race,Race Overtake Bonus,6,,6,-14,-21
+Fernando Alonso,Aston Martin,$8.8M,China,sprint,Sprint Positions Gained,1,,1,-7,-21
+Fernando Alonso,Aston Martin,$8.8M,China,sprint,Sprint Overtake Bonus,5,,5,-7,-21
+Fernando Alonso,Aston Martin,$8.8M,China,qualifying,Qualifying Position,,19,0,-7,-21
+Fernando Alonso,Aston Martin,$8.8M,China,sprint,Sprint Position,,17,0,-7,-21
+Fernando Alonso,Aston Martin,$8.8M,China,race,Race Not Classified,,,-20,-7,-21
+Fernando Alonso,Aston Martin,$8.8M,China,race,Race Overtake Bonus,7,,7,-7,-21
+Oscar Piastri,McLaren,$24.9M,Australia,qualifying,Qualifying Position,,5,6,-14,-21
+Oscar Piastri,McLaren,$24.9M,Australia,race,Race Not Classified,,,-20,-14,-21
+Oscar Piastri,McLaren,$24.9M,China,sprint,Sprint Positions Lost,1,,-1,-7,-21
+Oscar Piastri,McLaren,$24.9M,China,sprint,Sprint Overtake Bonus,5,,5,-7,-21
+Oscar Piastri,McLaren,$24.9M,China,qualifying,Qualifying Position,,5,6,-7,-21
+Oscar Piastri,McLaren,$24.9M,China,sprint,Sprint Position,,6,3,-7,-21
+Oscar Piastri,McLaren,$24.9M,China,race,Race Not Classified,,,-20,-7,-21
+Lance Stroll,Aston Martin,$6.8M,Australia,race,Race Not Classified,,,-20,-23,-37
+Lance Stroll,Aston Martin,$6.8M,Australia,race,QF Not Classified,,,-5,-23,-37
+Lance Stroll,Aston Martin,$6.8M,Australia,race,Race Overtake Bonus,2,,2,-23,-37
+Lance Stroll,Aston Martin,$6.8M,China,sprint,Sprint Positions Gained,1,,1,-14,-37
+Lance Stroll,Aston Martin,$6.8M,China,sprint,Sprint Overtake Bonus,4,,4,-14,-37
+Lance Stroll,Aston Martin,$6.8M,China,qualifying,Qualifying Position,,21,0,-14,-37
+Lance Stroll,Aston Martin,$6.8M,China,sprint,Sprint Position,,18,0,-14,-37
+Lance Stroll,Aston Martin,$6.8M,China,race,Race Not Classified,,,-20,-14,-37
+Lance Stroll,Aston Martin,$6.8M,China,race,Race Overtake Bonus,1,,1,-14,-37
