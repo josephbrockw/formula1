@@ -11,6 +11,7 @@ from predictions.evaluation.backtester import BacktestResult, Backtester, RaceBa
 from predictions.features.v1_pandas import V1FeatureStore
 from predictions.features.v2_pandas import V2FeatureStore
 from predictions.features.v3_pandas import V3FeatureStore
+from predictions.features.v4 import V4FeatureStore
 from predictions.models import BacktestRaceResult, BacktestRun
 from predictions.optimizers.greedy_v1 import GreedyOptimizer as GreedyOptimizerV1
 from predictions.optimizers.greedy_v2 import GreedyOptimizerV2
@@ -30,6 +31,7 @@ _FEATURE_STORE_REGISTRY = {
     "v1": V1FeatureStore,
     "v2": V2FeatureStore,
     "v3": V3FeatureStore,
+    "v4": V4FeatureStore,
 }
 _PREDICTOR_REGISTRY = {
     "v1": XGBoostPredictor,

@@ -100,6 +100,14 @@ def make_lap(
     lap_number: int = 1,
     lap_time_seconds: float = 90.0,
     is_accurate: bool = True,
+    compound: str | None = None,
+    tyre_life: int | None = None,
+    stint: int | None = None,
+    sector1_seconds: float | None = None,
+    sector2_seconds: float | None = None,
+    sector3_seconds: float | None = None,
+    is_pit_in_lap: bool = False,
+    is_pit_out_lap: bool = False,
 ) -> Lap:
     return Lap.objects.create(
         session=session,
@@ -107,6 +115,14 @@ def make_lap(
         lap_number=lap_number,
         lap_time=timedelta(seconds=lap_time_seconds),
         is_accurate=is_accurate,
+        compound=compound,
+        tyre_life=tyre_life,
+        stint=stint,
+        sector1_time=timedelta(seconds=sector1_seconds) if sector1_seconds is not None else None,
+        sector2_time=timedelta(seconds=sector2_seconds) if sector2_seconds is not None else None,
+        sector3_time=timedelta(seconds=sector3_seconds) if sector3_seconds is not None else None,
+        is_pit_in_lap=is_pit_in_lap,
+        is_pit_out_lap=is_pit_out_lap,
     )
 
 

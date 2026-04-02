@@ -103,7 +103,7 @@ ML_OPTIMIZER: str = "v3"
 
 # Valid versions for each component (update when adding new versions).
 # Management commands import from here so choices stay in one place.
-ML_FEATURE_STORE_VERSIONS: list[str] = ["v1", "v2", "v3"]
+ML_FEATURE_STORE_VERSIONS: list[str] = ["v1", "v2", "v3", "v4"]
 
 # Default finishing/qualifying position used for drivers and teams that have
 # NO cross-season history at all (true rookies, brand-new constructors).

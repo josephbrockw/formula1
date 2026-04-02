@@ -282,8 +282,8 @@ class TestNextRaceAutoScoring(TestCase):
         with patch("predictions.management.commands.next_race.build_training_dataset",
                    return_value=(self._mock_X, self._mock_y)), \
              patch("predictions.management.commands.next_race.V2FeatureStore") as MockStore, \
-             patch("predictions.management.commands.next_race.XGBoostPredictorV2") as MockPred, \
-             patch("predictions.management.commands.next_race.GreedyOptimizerV2") as MockOpt:
+             patch("predictions.management.commands.next_race.XGBoostPredictorV4") as MockPred, \
+             patch("predictions.management.commands.next_race.ILPOptimizer") as MockOpt:
             MockStore.return_value.get_all_driver_features.return_value = self._mock_features
             MockPred.return_value.predict.return_value = self._mock_predictions
             MockOpt.return_value.optimize_single_race.return_value = self._mock_lineup

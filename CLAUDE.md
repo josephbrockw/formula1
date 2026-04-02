@@ -15,7 +15,7 @@ The core project is in f1_data/ which is the Django app and chrome_extension/ is
 
 ## Context Loading
 
-- Current tasks → TASKS.md
+- Current plan → ACTIVE.md
 - Architecture questions → docs/ARCHITECTURE.md
 - ML Process questions → docs/ML_PROCESS.md 
 - Application Usage → docs/USAGE.md (living doc of how to use the app, only change when there is a change in execution of commands) 
@@ -25,7 +25,6 @@ The core project is in f1_data/ which is the Django app and chrome_extension/ is
 
 ## Commands
 
-- `/task` — Add a task to TASKS.md
 - `/done` — Remove a completed task from TASKS.md
 - `/decide` — Append a timestamped decision to DECISIONS.md
 - `/focus` — Update the Current Focus section above

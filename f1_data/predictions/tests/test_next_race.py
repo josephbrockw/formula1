@@ -297,10 +297,10 @@ class TestNextRaceCommand(TestCase):
             "predictions.management.commands.next_race.V2FeatureStore",
         )
         p3 = patch(
-            "predictions.management.commands.next_race.XGBoostPredictorV2",
+            "predictions.management.commands.next_race.XGBoostPredictorV4",
         )
         p4 = patch(
-            "predictions.management.commands.next_race.GreedyOptimizerV2",
+            "predictions.management.commands.next_race.ILPOptimizer",
         )
 
         class _CM:
@@ -339,7 +339,7 @@ class TestNextRaceCommand(TestCase):
             "predictions.management.commands.next_race.build_training_dataset",
             return_value=(X, y),
         ), patch("predictions.management.commands.next_race.V2FeatureStore") as MockStore, \
-           patch("predictions.management.commands.next_race.XGBoostPredictorV2"):
+           patch("predictions.management.commands.next_race.XGBoostPredictorV4"):
             MockStore.return_value.get_all_driver_features.return_value = pd.DataFrame()
             with self.assertRaises(CommandError):
                 self._call()
@@ -354,7 +354,7 @@ class TestNextRaceCommand(TestCase):
             "predictions.management.commands.next_race.build_training_dataset",
             return_value=(X, y),
         ), patch("predictions.management.commands.next_race.V2FeatureStore") as MockStore, \
-           patch("predictions.management.commands.next_race.XGBoostPredictorV2") as MockPred:
+           patch("predictions.management.commands.next_race.XGBoostPredictorV4") as MockPred:
             MockStore.return_value.get_all_driver_features.return_value = features
             MockPred.return_value.predict.return_value = predictions
             with self.assertRaises(CommandError):

@@ -188,7 +188,7 @@ Estimated timeline: roughly one feature-complete PR every 1-2 working sessions. 
 ### Phase 2: Feature Store v4 (PRs 4-6)
 
 **PR 4 — Practice telemetry features**
-- New `v4_pandas.py` feature store with long-run pace rank, tyre deg rank, short-vs-long delta, sector ranks, lap count, session availability
+- New `v4.py` feature store with long-run pace rank, tyre deg rank, short-vs-long delta, sector ranks, lap count, session availability
 - Filter logic: `is_accurate=True`, exclude pit in/out laps, compound grouping, minimum stint length
 - Tests with factory data
 - Run backtest comparison: v3 vs v4 features with existing predictor
