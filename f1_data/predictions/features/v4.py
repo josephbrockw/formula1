@@ -14,7 +14,7 @@ from predictions.features.v3_pandas import V3FeatureStore
 
 class V4FeatureStore:
     """
-    Extends V3FeatureStore with practice-telemetry and form-direction features.
+    Extends V3FeatureStore with practice-telemetry, form-direction, and weather features.
 
     Telemetry features (derived from FP lap data):
       fp_long_run_pace_rank, fp_tyre_deg_rank, fp_sector1_rank,
@@ -29,6 +29,10 @@ class V4FeatureStore:
       team_best_position   — best finishing position across both cars, last 5 races
       quali_last1          — qualifying position at the most recent event
       quali_slope          — OLS slope of qualifying positions over last 5 events
+
+    Weather features (derived from V3's continuous weather columns):
+      practice_rainfall_any        — 1.0 if any practice session had rain, 0.0 otherwise
+      driver_wet_performance_rank  — rank of driver_wet_vs_dry_position_delta (1 = best wet performer)
     """
 
     def get_driver_features(self, driver_id: int, event_id: int) -> dict[str, float]:
@@ -80,6 +84,20 @@ class V4FeatureStore:
         # Negative = stronger in race pace than short runs.
         df["fp_short_vs_long_delta"] = (
             df["practice_best_lap_rank"] - df["fp_long_run_pace_rank"]
+        )
+
+        # Binary wet-weekend flag. The ranker uses this as a conditioning signal to
+        # weight wet-specialist features more heavily. Derived from V3's continuous
+        # fraction — no extra DB query needed.
+        df["practice_rainfall_any"] = (df["weather_practice_rain_fraction"] > 0.0).astype(float)
+
+        # Rank drivers by wet vs dry position delta, ascending (rank 1 = best wet performer).
+        # Drivers with insufficient wet history receive V3's default +2.0 penalty, which
+        # naturally places them near the bottom when ranked — encoding "unknown wet ability".
+        # When all drivers are on the same default (no wet races in history), method="average"
+        # assigns them all equal rank (~10.5 for a 20-driver field).
+        df["driver_wet_performance_rank"] = df["driver_wet_vs_dry_position_delta"].rank(
+            method="average", ascending=True
         )
 
         return df

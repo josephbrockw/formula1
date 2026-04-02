@@ -31,7 +31,7 @@ from predictions.tests.factories import make_lap
 
 # V3 has 26 features; V4 adds 8 telemetry + 7 form-direction = 15 new ones.
 V3_FEATURE_COUNT = 26
-V4_NEW_FEATURE_COUNT = 15
+V4_NEW_FEATURE_COUNT = 17
 
 
 # ---------------------------------------------------------------------------
@@ -623,3 +623,80 @@ class ComputeFormFeaturesTest(TestCase):
         self.assertEqual(features["quali_last1"][self.d1.id], 1.0)
         # 5 → 3 → 1 is improving → negative slope
         self.assertLess(features["quali_slope"][self.d1.id], 0.0)
+
+
+# ---------------------------------------------------------------------------
+# practice_rainfall_any (integration)
+# ---------------------------------------------------------------------------
+
+
+class PracticeRainfallAnyTest(TestCase):
+    def setUp(self):
+        self.season, self.team, self.d1, self.d2, self.event = _setup_base()
+        self.race = make_session(self.event, session_type="R")
+        make_result(self.race, self.d1, self.team, position=1)
+        make_result(self.race, self.d2, self.team, position=2)
+
+    def test_dry_practice_returns_zero(self):
+        fp1 = make_session(self.event, session_type="FP1")
+        make_weather_sample(fp1, rainfall=False)
+        df = V4FeatureStore().get_all_driver_features(self.event.id)
+        self.assertTrue((df["practice_rainfall_any"] == 0.0).all())
+
+    def test_any_wet_practice_returns_one(self):
+        fp1 = make_session(self.event, session_type="FP1")
+        fp2 = make_session(self.event, session_type="FP2")
+        make_weather_sample(fp1, rainfall=False)
+        make_weather_sample(fp2, rainfall=True)
+        df = V4FeatureStore().get_all_driver_features(self.event.id)
+        self.assertTrue((df["practice_rainfall_any"] == 1.0).all())
+
+    def test_race_session_rain_excluded(self):
+        # Rain only in the race session — no FP weather samples → fraction = 0.0
+        make_weather_sample(self.race, rainfall=True)
+        df = V4FeatureStore().get_all_driver_features(self.event.id)
+        self.assertTrue((df["practice_rainfall_any"] == 0.0).all())
+
+
+# ---------------------------------------------------------------------------
+# driver_wet_performance_rank (integration)
+# ---------------------------------------------------------------------------
+
+
+class DriverWetPerformanceRankTest(TestCase):
+    def setUp(self):
+        self.season, self.team, self.d1, self.d2, self.event = _setup_base()
+        race = make_session(self.event, session_type="R")
+        make_result(race, self.d1, self.team, position=1)
+        make_result(race, self.d2, self.team, position=2)
+
+    def _past_race(self, round_number, event_date, d1_pos, d2_pos, is_wet=False):
+        event = make_event(self.season, round_number=round_number, event_date=event_date)
+        session = make_session(event, session_type="R")
+        make_result(session, self.d1, self.team, position=d1_pos)
+        make_result(session, self.d2, self.team, position=d2_pos)
+        if is_wet:
+            make_weather_sample(session, rainfall=True)
+
+    def test_wet_specialist_ranks_first(self):
+        # Need ≥3 wet and ≥3 dry results each for V3's formula to produce a real delta.
+        # d1: wet avg=2, dry avg=9 → delta=-7 → rank 1 (best wet performer)
+        # d2: wet avg=9, dry avg=2 → delta=+7 → rank 2
+        for i, (d1p, d2p) in enumerate([(1, 8), (2, 9), (3, 10)], start=1):
+            self._past_race(i, date(2024, i, 1), d1p, d2p, is_wet=True)
+        for i, (d1p, d2p) in enumerate([(8, 1), (9, 2), (10, 3)], start=4):
+            self._past_race(i, date(2024, i, 1), d1p, d2p, is_wet=False)
+        df = V4FeatureStore().get_all_driver_features(self.event.id)
+        d1_rank = df[df["driver_id"] == self.d1.id].iloc[0]["driver_wet_performance_rank"]
+        d2_rank = df[df["driver_id"] == self.d2.id].iloc[0]["driver_wet_performance_rank"]
+        self.assertEqual(d1_rank, 1.0)
+        self.assertEqual(d2_rank, 2.0)
+
+    def test_all_default_deltas_get_equal_rank(self):
+        # No wet history → both drivers default to +2.0 delta → tied rank
+        # method="average" assigns both rank 1.5 in a 2-driver field
+        df = V4FeatureStore().get_all_driver_features(self.event.id)
+        d1_rank = df[df["driver_id"] == self.d1.id].iloc[0]["driver_wet_performance_rank"]
+        d2_rank = df[df["driver_id"] == self.d2.id].iloc[0]["driver_wet_performance_rank"]
+        self.assertEqual(d1_rank, 1.5)
+        self.assertEqual(d2_rank, 1.5)

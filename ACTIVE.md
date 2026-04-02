@@ -1,123 +1,85 @@
 # Active Plan 
-PR 5 — Form Direction + Car Separation Features
+
+PR 6 — Weather Features: practice_rainfall_any + driver_wet_performance_rank
 
 Context
 
-The v4 feature store currently lives in f1_data/predictions/features/v4.py. Per ML_UPGRADE_INTEGRATION.md, f1_data/predictions/features/v4.py should contain
-telemetry + form direction features. This PR adds 7 new features capturing the direction of a driver's form and relative strength vs their teammate.
+V4 already inherits V3's continuous weather features (weather_practice_rain_fraction, driver_wet_vs_dry_position_delta, driver_wet_session_count). This PR adds two
+derived features on top of those:
 
-The current feature store averages (e.g. position_mean_last3) lose information about trend: a driver who finished 5th, 4th, 3rd in recent races looks the same as
-one who finished 3rd, 4th, 5th. Slope and recency features fix this.
+1. practice_rainfall_any — a binary conditioning signal: "was practice wet this weekend?" The ranker benefits from this as a discrete wet/dry switch, even though
+   the continuous fraction exists.
+2. driver_wet_performance_rank — converts the raw delta (positions gained/lost in wet vs dry) into a rank (1-20.5), matching V4's rank-based idiom for driver
+   comparisons.
 
- ---
-Files to Change
-
-┌─────────────────────────────────────────────────────────┬─────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                          File                           │                                             Action                                              │
-├─────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ f1_data/predictions/features/v4.py                      │ add 7 new features                                                                              │
-├─────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────┤
+Both features are derived from columns already computed by V3 — no additional DB queries.
 
  ---
-7 New Features
+Files to change
 
-Race form direction
-
-┌─────────────────────┬─────────────────────────────────────────────────────────────────────────────────────┬─────────────────────────────────────┐
-│       Feature       │                                     Definition                                      │               Default               │
-├─────────────────────┼─────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────┤
-│ position_last1      │ Finishing position in the most recent race                                          │ NEW_ENTRANT_POSITION_DEFAULT (18.0) │
-├─────────────────────┼─────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────┤
-│ position_slope      │ OLS slope of finishing positions over last 5 races (negative = improving)           │ 0.0                                 │
-├─────────────────────┼─────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────┤
-│ best_position_last5 │ Best (minimum) finishing position in last 5 races (DNFs → 20.0)                     │ NEW_ENTRANT_POSITION_DEFAULT        │
-├─────────────────────┼─────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────┤
-│ teammate_delta      │ driver_position_last1 - teammate_position_last1 (negative = driver ahead last race) │ 0.0                                 │
-├─────────────────────┼─────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────┤
-│ team_best_position  │ Minimum finishing position across both team cars in last 5 races                    │ NEW_ENTRANT_POSITION_DEFAULT        │
-└─────────────────────┴─────────────────────────────────────────────────────────────────────────────────────┴─────────────────────────────────────┘
-
-Qualifying trajectory
-
-┌─────────────┬─────────────────────────────────────────────────────────────────────────────┬──────────────────────────────┐
-│   Feature   │                                 Definition                                  │           Default            │
-├─────────────┼─────────────────────────────────────────────────────────────────────────────┼──────────────────────────────┤
-│ quali_last1 │ Qualifying position at the most recent event                                │ NEW_ENTRANT_POSITION_DEFAULT │
-├─────────────┼─────────────────────────────────────────────────────────────────────────────┼──────────────────────────────┤
-│ quali_slope │ OLS slope of qualifying positions over last 5 events (negative = improving) │ 0.0                          │
-└─────────────┴─────────────────────────────────────────────────────────────────────────────┴──────────────────────────────┘
+┌───────────────────────────────────────────────┬────────────────────────────────────────────────────┐
+│                     File                      │                       Change                       │
+├───────────────────────────────────────────────┼────────────────────────────────────────────────────┤
+│ f1_data/predictions/features/v4.py            │ Add 2 feature computations + update docstring      │
+├───────────────────────────────────────────────┼────────────────────────────────────────────────────┤
+│ f1_data/predictions/tests/test_features_v4.py │ Update feature count constant + add 2 test classes │
+└───────────────────────────────────────────────┴────────────────────────────────────────────────────┘
 
  ---
-Implementation Approach
+Implementation
 
-1. Add private helpers in f1_data/predictions/features/v4.py (after the existing FP helpers)
+v4.py — get_all_driver_features
 
-_driver_recent_race_positions(codes, event, n=5)
-- Query SessionResult for session_type="R", ordered by event_date desc, limited to n races before this event
-- Returns dict[str, list[float]] (driver code → positions chronologically ascending)
-- Use driver__code__in=codes for batch query (same cross-season pattern as v3)
-- DNF detection: same as v1 — not (status == "Finished" or status.startswith("+")) → assign 20.0
+Add after the fp_short_vs_long_delta line (line 83):
 
-_driver_recent_quali_positions(codes, event, n=5)
-- Same as above but session_type="Q"
+# Binary wet-weekend flag. The ranker uses this as a conditioning signal to
+# weight wet-specialist features more heavily. Derived from V3's continuous
+# fraction — no extra DB query needed.
+df["practice_rainfall_any"] = (df["weather_practice_rain_fraction"] > 0.0).astype(float)
 
-_compute_form_features(driver_rows, event)
-- Calls the two helpers above
-- Computes per driver:
-    - position_last1: last element of sorted positions (or default)
-    - position_slope: np.polyfit(range(len(positions)), positions, 1)[0] when ≥2 points
-    - best_position_last5: min of positions
-    - quali_last1, quali_slope: same logic for quali
-- Computes per team (group driver_rows by team_id):
-    - teammate_delta: driver_last1 - teammate_last1 (0.0 if no teammate or insufficient data)
-    - team_best_position: min across all drivers in team over last 5 races
-
-2. Wire into get_all_driver_features()
-
-After the FP telemetry block (existing v4 code), add:
-
-```python
-driver_rows = list(
-Driver.objects.filter(id__in=driver_ids).values("id", "code", "team_id")
+# Rank drivers by wet vs dry position delta, ascending (rank 1 = best wet performer).
+# Drivers with insufficient wet history receive V3's default +2.0 penalty, which
+# naturally places them near the bottom when ranked — encoding "unknown wet ability".
+# When all drivers are on the same default (no wet races in history), method="average"
+# assigns them all equal rank (~10.5 for a 20-driver field).
+df["driver_wet_performance_rank"] = df["driver_wet_vs_dry_position_delta"].rank(
+method="average", ascending=True
 )
-form_features = _compute_form_features(driver_rows, event)
-for col, mapping in form_features.items():
-df[col] = df["driver_id"].astype(int).map(mapping)
-```
 
-3. Update the class docstring
+Update the class docstring to add the two new features under a "Weather features" section.
 
-Add the 7 new features to the list.
+test_features_v4.py
 
- ---
-Key design decisions
+1. Update feature count constant:
+   V4_NEW_FEATURE_COUNT = 17  # was 15
 
-- Reuse driver__code cross-season pattern: Same as v3 — queries by driver.code so VER-2024 and VER-2025 are matched correctly. Avoids the "all rookies look the
-  same" problem.
-- DNF → 20.0: Consistent with v1's existing convention (NEW_ENTRANT_POSITION_DEFAULT = 18.0 is for true rookies; DNFs get 20 since they started the race and failed
-  to finish — slightly worse than last place).
-- teammate_delta uses last1 not last5: Provides a different signal from the existing driver_vs_teammate_gap_last5 in v3 (which is a rolling average). The last-race
-  delta captures current form momentum vs teammate.
-- team_best_position uses last5: The "car ceiling" signal — what's the best this car can do recently? Useful for detecting whether a team had one exceptional
-  outlier (strategy, safety car) vs consistent pace.
-- OLS slope: Reuses the same np.polyfit approach as fantasy_points_trend_last5 in v2. Requires ≥2 data points; defaults to 0.0 when insufficient.
+2. Add PracticeRainfallAnyTest — tests via the get_all_driver_features integration path, creating WeatherSample records using make_weather_sample:
+
+- test_dry_practice_returns_zero: FP1 with rainfall=False → practice_rainfall_any = 0.0
+- test_any_wet_practice_returns_one: FP1 dry + FP2 wet → practice_rainfall_any = 1.0
+- test_race_session_rain_excluded: rain only in race session, no FP samples → practice_rainfall_any = 0.0
+
+3. Add DriverWetPerformanceRankTest — tests via _wet_vs_dry_position_deltas + ranking logic, using the V3 test helper pattern (_past_race with is_wet=True/False):
+
+- test_wet_specialist_ranks_first: driver A finishes better in wet than dry (negative delta), driver B worse → driver A gets rank 1
+- test_all_default_deltas_get_equal_rank: two drivers with no wet history both have +2.0 delta → method="average" assigns them both the same rank (1.5 for a
+  2-driver field), confirming no artificial differentiation
+
+These tests call V4FeatureStore().get_all_driver_features(event_id) and check the resulting df columns.
 
  ---
 Verification
 
-# Run backtest comparing v3 vs v4 feature stores, same predictor and optimizer
-python manage.py backtest --feature-store v3 v4 --predictor v4 --optimizer v4 --seasons 2024
+# Run just the V4 tests
+python manage.py test predictions.tests.test_features_v4
 
-# Quick sanity check: print feature vector for one driver at one event
-```
+# Run full feature test suite
+python manage.py test predictions.tests
+
+# Quick smoke test: check feature count for a known event
 python manage.py shell -c "
 from predictions.features.v4 import V4FeatureStore
-from core.models import Event
-e = Event.objects.filter(season__year=2024).order_by('event_date')[5]
-fs = V4FeatureStore()
-df = fs.get_all_driver_features(e.id)
-print(df[['driver_id','position_last1','position_slope','best_position_last5','teammate_delta','team_best_position','quali_last1','quali_slope']].to_string())
+df = V4FeatureStore().get_all_driver_features(<event_id>)
+print(df.columns.tolist())
+print(df[['driver_id','practice_rainfall_any','driver_wet_performance_rank']].head())
 "
-```
-
-New features should be non-null for most drivers at any race from round 4 onwards (first 3 rounds have insufficient history for slopes).

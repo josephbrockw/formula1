@@ -71,7 +71,7 @@ The race ranker depends on the qualifying ranker's output (predicted qualifying 
 
 ```
 predictions/features/
-└── v4_pandas.py             ← NEW — telemetry + form direction features
+└── v4.py                    ← NEW — telemetry + form direction features
 
 predictions/evaluation/
 ├── backtester.py            ← MODIFIED — add rank-based metrics, MyLineup comparison

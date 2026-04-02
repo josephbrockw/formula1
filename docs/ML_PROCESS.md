@@ -15,7 +15,7 @@ Season                  →    Feature Store
 Circuit                      ├── v1_pandas.V1FeatureStore  (15 features)
 Team                         ├── v2_pandas.V2FeatureStore  (25 features — weather, car-circuit fit, driver intelligence)
 Driver                       ├── v3_pandas.V3FeatureStore  (29 features — richer wet weather, pruned zero-importance)
-SessionResult                └── v4.V4FeatureStore         (44 features — adds 8 FP telemetry + 7 form-direction) ← current best
+SessionResult                └── v4.V4FeatureStore         (46 features — adds 8 FP telemetry + 7 form-direction + 2 weather) ← current best
 Event                                      │
 Session                                    ▼
 SessionResult                Performance Predictor
