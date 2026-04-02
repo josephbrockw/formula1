@@ -184,7 +184,7 @@ class TestBacktesterRun(TestCase):
     def test_run_returns_backtest_result(self) -> None:
         from predictions.evaluation.backtester import Backtester
         from predictions.features.v1_pandas import V1FeatureStore
-        from predictions.predictors.xgboost_v1 import XGBoostPredictor
+        from predictions.predictors.xgboost.v1 import XGBoostPredictor
 
         events = [self._make_event_with_data(i, position=i, fantasy_pts=50 - i * 3) for i in range(1, 5)]
         backtester = Backtester()
@@ -200,7 +200,7 @@ class TestBacktesterRun(TestCase):
     def test_run_produces_race_results_for_each_testable_event(self) -> None:
         from predictions.evaluation.backtester import Backtester
         from predictions.features.v1_pandas import V1FeatureStore
-        from predictions.predictors.xgboost_v1 import XGBoostPredictor
+        from predictions.predictors.xgboost.v1 import XGBoostPredictor
 
         events = [self._make_event_with_data(i, position=i, fantasy_pts=50 - i * 3) for i in range(1, 5)]
         result = Backtester().run(
@@ -216,7 +216,7 @@ class TestBacktesterRun(TestCase):
     def test_mae_fields_are_floats(self) -> None:
         from predictions.evaluation.backtester import Backtester
         from predictions.features.v1_pandas import V1FeatureStore
-        from predictions.predictors.xgboost_v1 import XGBoostPredictor
+        from predictions.predictors.xgboost.v1 import XGBoostPredictor
 
         events = [self._make_event_with_data(i, position=i, fantasy_pts=50 - i * 3) for i in range(1, 4)]
         result = Backtester().run(
@@ -233,7 +233,7 @@ class TestBacktesterRun(TestCase):
     def test_lineup_metrics_none_without_price_data(self) -> None:
         from predictions.evaluation.backtester import Backtester
         from predictions.features.v1_pandas import V1FeatureStore
-        from predictions.predictors.xgboost_v1 import XGBoostPredictor
+        from predictions.predictors.xgboost.v1 import XGBoostPredictor
 
         events = [self._make_event_with_data(i, position=i, fantasy_pts=50 - i * 3) for i in range(1, 4)]
         result = Backtester().run(
@@ -287,7 +287,7 @@ class TestBacktesterRun(TestCase):
     def test_lineup_metrics_populated_with_price_data(self) -> None:
         from predictions.evaluation.backtester import Backtester
         from predictions.features.v1_pandas import V1FeatureStore
-        from predictions.predictors.xgboost_v1 import XGBoostPredictor
+        from predictions.predictors.xgboost.v1 import XGBoostPredictor
 
         drivers, teams = self._make_world()
         season = drivers[0].season
@@ -310,7 +310,7 @@ class TestBacktesterRun(TestCase):
     def test_optimal_score_at_least_as_good_as_lineup(self) -> None:
         from predictions.evaluation.backtester import Backtester
         from predictions.features.v1_pandas import V1FeatureStore
-        from predictions.predictors.xgboost_v1 import XGBoostPredictor
+        from predictions.predictors.xgboost.v1 import XGBoostPredictor
 
         drivers, teams = self._make_world()
         season = drivers[0].season
@@ -341,7 +341,7 @@ class TestBacktesterRun(TestCase):
         """
         from predictions.evaluation.backtester import Backtester
         from predictions.features.v1_pandas import V1FeatureStore
-        from predictions.predictors.xgboost_v1 import XGBoostPredictor
+        from predictions.predictors.xgboost.v1 import XGBoostPredictor
 
         drivers, teams = self._make_world()
         season = drivers[0].season
@@ -411,8 +411,8 @@ class TestBacktesterRun(TestCase):
         )
         # Build DataFrames the same way _optimize_and_score would
         from predictions.features.v1_pandas import V1FeatureStore
-        from predictions.predictors.xgboost_v1 import XGBoostPredictor
-        from predictions.predictors.xgboost_v1 import build_training_dataset
+        from predictions.predictors.xgboost.v1 import XGBoostPredictor
+        from predictions.predictors.xgboost.shared import build_training_dataset
         X, y = build_training_dataset([event1], V1FeatureStore())
         predictor = XGBoostPredictor()
         predictor.fit(X, y)
@@ -435,7 +435,7 @@ class TestBacktesterRun(TestCase):
         """
         from predictions.evaluation.backtester import Backtester, compute_oracle_cache
         from predictions.features.v1_pandas import V1FeatureStore
-        from predictions.predictors.xgboost_v1 import XGBoostPredictor
+        from predictions.predictors.xgboost.v1 import XGBoostPredictor
         from predictions.optimizers.greedy_v2 import GreedyOptimizerV2
 
         drivers, teams = self._make_world()

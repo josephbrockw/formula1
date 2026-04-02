@@ -6,12 +6,12 @@ import numpy as np
 import pandas as pd
 from django.conf import settings
 
-from predictions.predictors.xgboost_v1 import (
+from predictions.predictors.xgboost.shared import (
     TARGET_POINTS,
     TARGET_POSITION,
     _NON_FEATURE_COLS,
 )
-from predictions.predictors.xgboost_v2 import XGBoostPredictorV2
+from predictions.predictors.xgboost.v2 import XGBoostPredictorV2
 
 
 class XGBoostPredictorV3(XGBoostPredictorV2):

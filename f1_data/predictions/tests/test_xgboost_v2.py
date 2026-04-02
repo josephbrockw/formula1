@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from django.test import SimpleTestCase
 
-from predictions.predictors.xgboost_v2 import XGBoostPredictorV2
+from predictions.predictors.xgboost.v2 import XGBoostPredictorV2
 
 
 FEATURE_COLS = [

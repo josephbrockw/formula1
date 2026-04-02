@@ -8,7 +8,8 @@ from predictions.features.v1_pandas import V1FeatureStore
 from predictions.features.v2_pandas import V2FeatureStore
 from predictions.features.v3_pandas import V3FeatureStore
 from predictions.models import RacePrediction
-from predictions.predictors.xgboost_v1 import XGBoostPredictor, build_training_dataset
+from predictions.predictors.xgboost.shared import build_training_dataset
+from predictions.predictors.xgboost.v1 import XGBoostPredictor
 
 _DEFAULT_MODEL_VERSION = "xgboost_v1"
 

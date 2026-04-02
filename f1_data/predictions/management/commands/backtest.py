@@ -17,10 +17,10 @@ from predictions.optimizers.greedy_v1 import GreedyOptimizer as GreedyOptimizerV
 from predictions.optimizers.greedy_v2 import GreedyOptimizerV2
 from predictions.optimizers.ilp_v3 import ILPOptimizer
 from predictions.optimizers.monte_carlo_v4 import MonteCarloOptimizer
-from predictions.predictors.xgboost_v1 import XGBoostPredictor
-from predictions.predictors.xgboost_v2 import XGBoostPredictorV2
-from predictions.predictors.xgboost_v3 import XGBoostPredictorV3
-from predictions.predictors.xgboost_v4 import XGBoostPredictorV4
+from predictions.predictors.xgboost.v1 import XGBoostPredictor
+from predictions.predictors.xgboost.v2 import XGBoostPredictorV2
+from predictions.predictors.xgboost.v3 import XGBoostPredictorV3
+from predictions.predictors.xgboost.v4 import XGBoostPredictorV4
 
 _VERSIONS = settings.ML_FEATURE_STORE_VERSIONS
 _OPT_VERSIONS = settings.ML_OPTIMIZER_VERSIONS

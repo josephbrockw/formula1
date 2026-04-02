@@ -5,8 +5,8 @@ import pandas as pd
 from django.conf import settings
 from xgboost import XGBRanker
 
-from predictions.predictors.xgboost_v1 import TARGET_POINTS, TARGET_POSITION, _NON_FEATURE_COLS
-from predictions.predictors.xgboost_v3 import XGBoostPredictorV3
+from predictions.predictors.xgboost.shared import TARGET_POINTS, TARGET_POSITION, _NON_FEATURE_COLS
+from predictions.predictors.xgboost.v3 import XGBoostPredictorV3
 
 
 def _compute_group_sizes(X: pd.DataFrame) -> np.ndarray:

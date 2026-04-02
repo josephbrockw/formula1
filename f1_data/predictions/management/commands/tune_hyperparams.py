@@ -9,7 +9,7 @@ from core.models import Event
 from predictions.features.v1_pandas import V1FeatureStore
 from predictions.features.v2_pandas import V2FeatureStore
 from predictions.features.v3_pandas import V3FeatureStore
-from predictions.predictors.xgboost_v1 import (
+from predictions.predictors.xgboost.shared import (
     TARGET_POSITION,
     _NON_FEATURE_COLS,
     build_training_dataset,

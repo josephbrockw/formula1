@@ -205,6 +205,39 @@ Estimated timeline: roughly one feature-complete PR every 1-2 working sessions. 
 
 ### Phase 3: Separate Models (PRs 7-9)
 
+*PR 6.5 - Reorg / Multipredictor Backtest**
+1. The current flat `predictors/` directory doesn't scale to multiple model types with multiple versions each. Reorganize into subdirectories per model type:
+
+```
+predictions/predictors/
+├── base.py                          ← PerformancePredictor Protocol (unchanged)
+├── points_mapper.py                 ← NEW — deterministic position → fantasy points
+├── xgboost/
+│   ├── __init__.py
+│   ├── shared.py                    ← build_training_dataset, walk_forward_splits (moved from xgboost_v1.py)
+│   ├── v1.py
+│   ├── v2.py
+│   ├── v3.py
+│   └── v4.py
+├── qualifying_ranker/
+│   ├── __init__.py
+│   └── v1.py                        ← XGBRanker, target: qualifying position
+├── race_ranker/
+│   ├── __init__.py
+│   └── v1.py                        ← XGBRanker, target: race position
+├── sprint_ranker/
+│   ├── __init__.py
+│   └── v1.py                        ← XGBRanker or heuristic
+└── price_heuristic/
+    ├── __init__.py
+    └── v1.py                         ← moved from price_heuristic.py
+```
+
+This should happen as a standalone refactor PR before any new models are added. Update all imports in management commands, backtester, and tests. Extract `build_training_dataset` and `walk_forward_splits` from `xgboost_v1.py` into `xgboost/shared.py` since they're already imported by multiple predictor versions. 
+
+2. a new generic backtest management command that will wrap running the qualifying predictor, sprint predictor, and race predictor is cleaner than adding flags to the existing race backtest command. The evaluation logic
+   (no lineup, no optimizer, no oracle, no transfer penalty - just model performance metrics) is different enough to warrant its own command.
+
 **PR 7 — Qualifying position model**
 - New predictor: `qualifying_ranker.py` using `XGBRanker` with `objective='rank:pairwise'`
 - Training target: qualifying position per race (from `SessionResult` where `session_type='Q'`)

@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from django.test import SimpleTestCase
 
-from predictions.predictors.price_heuristic import predict_price_trajectory
+from predictions.predictors.price_heuristic.v1 import predict_price_trajectory
 
 
 class TestPredictPriceTrajectory(SimpleTestCase):

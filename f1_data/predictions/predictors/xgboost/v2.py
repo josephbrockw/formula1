@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from xgboost import XGBRegressor
 
-from predictions.predictors.xgboost_v1 import (
+from predictions.predictors.xgboost.shared import (
     TARGET_POINTS,
     TARGET_POSITION,
     _NON_FEATURE_COLS,

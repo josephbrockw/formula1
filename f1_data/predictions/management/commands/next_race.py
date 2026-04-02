@@ -18,15 +18,16 @@ from predictions.models import (
     LineupRecommendation,
     MyLineup,
 )
-from predictions.predictors.price_heuristic import price_adjust_predictions, update_rolling_scores
+from predictions.predictors.price_heuristic.v1 import price_adjust_predictions, update_rolling_scores
 from predictions.optimizers.base import Lineup
 from predictions.optimizers.greedy_v1 import GreedyOptimizer
 from predictions.optimizers.greedy_v2 import GreedyOptimizerV2
 from predictions.optimizers.ilp_v3 import ILPOptimizer
-from predictions.predictors.xgboost_v1 import XGBoostPredictor, build_training_dataset
-from predictions.predictors.xgboost_v2 import XGBoostPredictorV2
-from predictions.predictors.xgboost_v3 import XGBoostPredictorV3
-from predictions.predictors.xgboost_v4 import XGBoostPredictorV4
+from predictions.predictors.xgboost.shared import build_training_dataset
+from predictions.predictors.xgboost.v1 import XGBoostPredictor
+from predictions.predictors.xgboost.v2 import XGBoostPredictorV2
+from predictions.predictors.xgboost.v3 import XGBoostPredictorV3
+from predictions.predictors.xgboost.v4 import XGBoostPredictorV4
 
 from predictions.scoring import (
     compute_oracle,

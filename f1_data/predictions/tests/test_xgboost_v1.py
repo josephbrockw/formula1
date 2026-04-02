@@ -4,11 +4,8 @@ import numpy as np
 import pandas as pd
 from django.test import SimpleTestCase, TestCase
 
-from predictions.predictors.xgboost_v1 import (
-    XGBoostPredictor,
-    build_training_dataset,
-    walk_forward_splits,
-)
+from predictions.predictors.xgboost.shared import build_training_dataset, walk_forward_splits
+from predictions.predictors.xgboost.v1 import XGBoostPredictor
 from predictions.tests.factories import (
     make_driver,
     make_event,

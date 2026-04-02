@@ -19,8 +19,8 @@ from predictions.models import (
 )
 from predictions.optimizers.base import Lineup, LineupOptimizer
 from predictions.predictors.base import PerformancePredictor
-from predictions.predictors.price_heuristic import price_adjust_predictions, update_rolling_scores
-from predictions.predictors.xgboost_v1 import build_training_dataset, walk_forward_splits
+from predictions.predictors.price_heuristic.v1 import price_adjust_predictions, update_rolling_scores
+from predictions.predictors.xgboost.shared import build_training_dataset, walk_forward_splits
 
 @dataclass
 class RaceBacktestResult:
