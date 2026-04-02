@@ -181,6 +181,34 @@ The import command detects file type by filename:
 
 For backtesting, hyperparameter tuning, and model evaluation workflows, see `docs/ML_PROCESS.md` — that document is the home for all ML development context including command usage, current best results, and implementation decisions.
 
+### Evaluating model quality (no optimizer)
+
+`backtest_model` strips out the optimizer and measures only how well the predictor ranks drivers — useful when you want to know whether model changes improve ranking accuracy independently of the lineup selection logic.
+
+```bash
+# Single run
+python manage.py backtest_model xgboost --seasons 2024
+
+# Sweep two feature stores side-by-side
+python manage.py backtest_model xgboost --seasons 2023 2024 --feature-store v2 v3
+
+# Sweep two predictors and print a comparison table
+python manage.py backtest_model xgboost --seasons 2024 --predictor v2 v3
+```
+
+The first argument is the predictor **family** — one of the directory names under `predictions/predictors/`:
+
+| Family | Evaluates against | Status |
+|---|---|---|
+| `xgboost` | Race (R) results | Available (v1–v4) |
+| `race_ranker` | Race (R) results | Placeholder |
+| `qualifying_ranker` | Qualifying (Q) results | Placeholder |
+| `sprint_ranker` | Sprint (S) results | Placeholder |
+
+Output columns: **MAE Pos**, **MAE Pts**, **Sρ** (Spearman rank correlation), **P@10** (top-10 precision), **R@10** (top-10 recall), **NDCG@10**. No Lineup, Optimal, or Trades columns — this command doesn't run an optimizer.
+
+---
+
 ### Running a backtest
 
 ```bash

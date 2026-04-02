@@ -38,6 +38,7 @@ WeatherSample                ├── XGBoostPredictorV2 (v2)    MSE mean + q10
                              Management Commands
                              ├── next_race        (main weekly command — train + predict + optimize)
                              ├── backtest         (--feature-store v1/v2/v3, --predictor v1/v2/v3/v4, --optimizer v1/v2/v3/v4)
+                             ├── backtest_model   (model-only eval — no optimizer, no lineup, no oracle)
                              ├── tune_hyperparams (random search over XGBoost params)
                              ├── predict_race     (superseded by next_race)
                              └── optimize_lineup  (superseded by next_race)
@@ -90,6 +91,24 @@ python manage.py backtest --seasons 2024 2025 --all
 ```
 
 Both sweep flags send a Slack summary when complete.
+
+---
+
+### Model-only evaluation (no optimizer)
+
+Use `backtest_model` when you want to evaluate ranking quality independently of the optimizer. It runs the same walk-forward loop as `backtest` but skips lineup selection entirely — no budget, no oracle, no transfer penalty.
+
+```bash
+# Single run
+python manage.py backtest_model xgboost --seasons 2024 --feature-store v3 --predictor v3
+
+# Compare two predictor versions — prints per-race tables then a summary comparison
+python manage.py backtest_model xgboost --seasons 2023 2024 --predictor v2 v3
+```
+
+The first argument is the predictor **family** (matches directory names under `predictions/predictors/`). Currently only `xgboost` has registered implementations; `race_ranker`, `qualifying_ranker`, and `sprint_ranker` are placeholders for future work.
+
+Output metrics: **MAE Pos**, **MAE Pts**, **Spearman ρ**, **Top-10 precision/recall**, **NDCG@10**. The "north star" here is Spearman ρ and NDCG@10 — they measure whether the model is identifying the right drivers at the top of the ranking, which is what drives lineup quality. If these improve without a corresponding improvement in `backtest` lineup points, the optimizer is the bottleneck.
 
 ---
 
