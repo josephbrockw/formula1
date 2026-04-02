@@ -241,7 +241,7 @@ class Command(BaseCommand):
 
         header = (
             f"{'':>10}  {'Event':<35}  {'Train':>5}  {'MAE Pos':>7}  {'MAE Pts':>7}"
-            f"  {'Trades':>6}  {'Lineup':>7}  {'Optimal':>7}"
+            f"  {'Trades':>6}  {'Lineup':>7}  {'Optimal':>7}  {'Sρ':>5}"
         )
         self.stdout.write(header)
         self.stdout.write("-" * len(header))
@@ -263,6 +263,7 @@ class Command(BaseCommand):
             self.stdout.write(
                 f"[{n:>3}/{total}]  {r.event_name:<35}  {r.n_train:>5}  {r.mae_position:>7.2f}"
                 f"  {r.mae_fantasy_points:>7.2f}  {r.n_transfers:>6}  {lineup_str:>7}  {optimal_str:>7}"
+                f"  {r.spearman_rho:>5.2f}"
             )
             if verbose and r.lineup is not None:
                 drivers_str = " ".join(driver_code_map.get(d, f"#{d}") for d in r.lineup.driver_ids)
@@ -298,6 +299,16 @@ class Command(BaseCommand):
         self.stdout.write(f"Races evaluated:        {len(result.race_results)}")
         self.stdout.write(f"Mean MAE (position):    {result.mean_mae_position:.2f}")
         self.stdout.write(f"Mean MAE (fantasy pts): {result.mean_mae_fantasy_points:.2f}")
+        self.stdout.write("")
+        n_races = len(result.race_results)
+        self.stdout.write(f"Rank metrics (mean across {n_races} races):")
+        self.stdout.write(f"  Spearman ρ:       {result.mean_spearman_rho:.2f}")
+        self.stdout.write(
+            f"  Top-10 precision: {result.mean_top10_precision:.2f}"
+            f"  ({result.mean_top10_precision * 10:.1f} of 10 correct on average)"
+        )
+        self.stdout.write(f"  Top-10 recall:    {result.mean_top10_recall:.2f}")
+        self.stdout.write(f"  NDCG@10:          {result.mean_ndcg_at_10:.2f}")
         if result.total_lineup_points is not None:
             self.stdout.write(f"Total lineup points:    {result.total_lineup_points:.1f}")
         if result.total_optimal_points is not None:
@@ -310,16 +321,16 @@ class Command(BaseCommand):
         if len(season_summaries) > 1:
             self.stdout.write("")
             self.stdout.write(
-                f"{'Season':>6}  {'Races':>5}  {'MAE Pos':>7}  {'MAE Pts':>7}  {'Lineup':>8}  {'Oracle':>8}  {'Left':>7}"
+                f"{'Season':>6}  {'Races':>5}  {'MAE Pos':>7}  {'MAE Pts':>7}  {'Lineup':>8}  {'Oracle':>8}  {'Left':>7}  {'Sρ':>5}"
             )
-            self.stdout.write("-" * 62)
+            self.stdout.write("-" * 70)
             for s in season_summaries:
                 lineup_str = f"{s.lineup_points:.0f}" if s.lineup_points is not None else "—"
                 oracle_str = f"{s.optimal_points:.0f}" if s.optimal_points is not None else "—"
                 left_str = f"{s.left_on_table:.0f}" if s.left_on_table is not None else "—"
                 self.stdout.write(
                     f"{s.year:>6}  {s.n_races:>5}  {s.mae_position:>7.2f}  {s.mae_fantasy_points:>7.2f}"
-                    f"  {lineup_str:>8}  {oracle_str:>8}  {left_str:>7}"
+                    f"  {lineup_str:>8}  {oracle_str:>8}  {left_str:>7}  {s.spearman_rho:>5.2f}"
                 )
 
         # Feature importances (top 10 from the fantasy-points model)
@@ -386,10 +397,14 @@ def _send_all_done_notification(
             else "—"
         )
 
+        rho = f"{result.mean_spearman_rho:.2f}"
+        p10 = f"{result.mean_top10_precision:.2f}"
+        ndcg = f"{result.mean_ndcg_at_10:.2f}"
         summary_lines = [
             f"*`{config}`*",
             f"MAE: *{mae_pos}* pos  /  *{mae_pts}* pts",
             f"Lineup: *{lineup}*  ·  Oracle: {oracle}  ·  Left: {left}",
+            f"Sρ: *{rho}*  ·  P@10: {p10}  ·  NDCG@10: {ndcg}",
         ]
 
         # Per-season breakdown

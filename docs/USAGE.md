@@ -181,6 +181,43 @@ The import command detects file type by filename:
 
 For backtesting, hyperparameter tuning, and model evaluation workflows, see `docs/ML_PROCESS.md` — that document is the home for all ML development context including command usage, current best results, and implementation decisions.
 
+### Running a backtest
+
+```bash
+# Single combination
+python manage.py backtest --seasons 2024 --predictor v3 --feature-store v3 --optimizer v2
+
+# Compare two feature stores side-by-side
+python manage.py backtest --seasons 2024 2025 --feature-store v2 v3 --predictor v3 --optimizer v2
+
+# Multi-season
+python manage.py backtest --seasons 2023 2024 2025 --predictor v3 --feature-store v3 --optimizer v2
+```
+
+#### Reading the output
+
+The per-race table shows one row per race with these columns:
+
+| Column | What it means |
+|--------|--------------|
+| `MAE Pos` | Mean absolute error on finishing position predictions across all 20 drivers. Lower is better. |
+| `MAE Pts` | Mean absolute error on predicted fantasy points. Lower is better. |
+| `Trades` | Number of driver/constructor changes from the previous race's lineup. |
+| `Lineup` | Actual fantasy points scored by the ML-recommended lineup that race. |
+| `Optimal` | Best possible points with perfect knowledge (ILP oracle). The ceiling. |
+| `Sρ` | Spearman rank correlation for that race — how well the predicted finishing order matched reality. 1.0 = perfect order, 0.0 = no correlation. |
+
+After the per-race table, the summary includes a **Rank metrics** block:
+
+| Metric | What it means | What's good |
+|--------|--------------|-------------|
+| `Spearman ρ` | Mean rank correlation across all races. Measures overall ordering quality. | ≥ 0.65 |
+| `Top-10 precision` | Of the 10 drivers we predicted as highest fantasy scorers, what fraction actually were in the top 10? 0.6 = we got 6 of 10 right on average. | ≥ 0.55 |
+| `Top-10 recall` | Of the actual top 10 scorers, what fraction did we correctly identify? | ≥ 0.55 |
+| `NDCG@10` | Like precision, but rewards getting the ranking *order* right within the top 10 — errors near position 1 are penalised more than errors near position 10. | ≥ 0.65 |
+
+The north star metric is **total lineup points** — everything else diagnoses *why* the lineup is good or bad. MAE tells you how precise the model is across all drivers; rank metrics tell you whether it's identifying the right drivers at the top, which is what actually drives lineup quality.
+
 ---
 
 ## Web UI

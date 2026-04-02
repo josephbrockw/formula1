@@ -101,6 +101,27 @@ Rate limits are handled automatically with exponential backoff (1 min → 5 min 
 | `backtest` | Walk-forward backtest over historical seasons; prints per-race MAE and lineup quality |
 | `tune_hyperparams` | Random search over XGBoost hyperparameters using TimeSeriesSplit CV |
 
+#### Interpreting backtest output
+
+Each race in the backtest prints a row with MAE and lineup quality columns. After all races, a summary block shows:
+
+**Error metrics** — how accurate the predictions are across all 20 drivers:
+- `Mean MAE (position)` — average absolute error on finishing position predictions. If this is 3.2, we're off by about 3 positions per driver on average.
+- `Mean MAE (fantasy pts)` — same idea but for predicted fantasy points.
+
+**Lineup quality metrics** — how good the selected lineup actually was:
+- `Total lineup points` — cumulative fantasy points scored by the ML-recommended lineup over all backtested races.
+- `Total optimal points` — what the ILP oracle would have scored with perfect knowledge. The ceiling.
+- `Points left on table` — the gap between oracle and lineup. Ideally as small as possible.
+
+**Rank metrics** — whether the model is identifying the *right drivers* at the top, which is what drives lineup quality:
+- `Spearman ρ` — rank correlation between predicted and actual finishing order across all 20 drivers. 1.0 = perfect order. 0.0 = uncorrelated. A high MAE model can still have a good Spearman ρ if it gets the order right even when point estimates are off.
+- `Top-10 precision` — of the 10 drivers we predicted would score most fantasy points, what fraction actually were in the top 10? 0.6 means 6 of 10 correct. Top 10 = the F1 points-scoring positions, where almost all fantasy value concentrates.
+- `Top-10 recall` — of the actual top 10 scorers, what fraction did we correctly identify?
+- `NDCG@10` — like precision, but weighted by rank position: correctly identifying the highest scorer matters more than correctly identifying the 10th scorer. 1.0 = perfect.
+
+The north star metric is lineup points. MAE is useful for debugging but a model with lower MAE can produce a worse lineup if it's mis-ranking the top drivers. The rank metrics bridge that gap.
+
 #### Lower-level / superseded (`predictions/`)
 
 These commands are thin building blocks that `next_race` now wraps end-to-end. They remain useful for debugging specific steps in isolation.

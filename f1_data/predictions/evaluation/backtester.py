@@ -9,6 +9,7 @@ from django.conf import settings
 from django.db.models import Max
 
 from core.models import Driver, Event, SessionResult
+from predictions.evaluation.metrics import compute_rank_metrics
 from predictions.features.base import FeatureStore
 from predictions.models import (
     FantasyConstructorPrice,
@@ -41,6 +42,10 @@ class RaceBacktestResult:
     n_transfers: int = 0
     lineup: "Lineup | None" = None
     season_year: int = 0
+    spearman_rho: float = 0.0
+    top10_precision: float = 0.0
+    top10_recall: float = 0.0
+    ndcg_at_10: float = 0.0
 
 
 @dataclass
@@ -53,6 +58,10 @@ class SeasonSummary:
     mae_fantasy_points: float
     lineup_points: float | None
     optimal_points: float | None
+    spearman_rho: float = 0.0
+    top10_precision: float = 0.0
+    top10_recall: float = 0.0
+    ndcg_at_10: float = 0.0
 
     @property
     def left_on_table(self) -> float | None:
@@ -89,6 +98,26 @@ class BacktestResult:
         return sum(pts) if pts else None
 
     @property
+    def mean_spearman_rho(self) -> float:
+        vals = [r.spearman_rho for r in self.race_results]
+        return sum(vals) / len(vals) if vals else 0.0
+
+    @property
+    def mean_top10_precision(self) -> float:
+        vals = [r.top10_precision for r in self.race_results]
+        return sum(vals) / len(vals) if vals else 0.0
+
+    @property
+    def mean_top10_recall(self) -> float:
+        vals = [r.top10_recall for r in self.race_results]
+        return sum(vals) / len(vals) if vals else 0.0
+
+    @property
+    def mean_ndcg_at_10(self) -> float:
+        vals = [r.ndcg_at_10 for r in self.race_results]
+        return sum(vals) / len(vals) if vals else 0.0
+
+    @property
     def by_season(self) -> list[SeasonSummary]:
         """Per-season breakdown, sorted by year."""
         buckets: dict[int, list[RaceBacktestResult]] = {}
@@ -108,6 +137,10 @@ class BacktestResult:
                 mae_fantasy_points=sum(mae_pts_vals) / len(mae_pts_vals),
                 lineup_points=sum(lineup_pts) if lineup_pts else None,
                 optimal_points=sum(opt_pts) if opt_pts else None,
+                spearman_rho=sum(r.spearman_rho for r in races) / len(races),
+                top10_precision=sum(r.top10_precision for r in races) / len(races),
+                top10_recall=sum(r.top10_recall for r in races) / len(races),
+                ndcg_at_10=sum(r.ndcg_at_10 for r in races) / len(races),
             ))
         return summaries
 
@@ -157,6 +190,7 @@ class Backtester:
             if not actuals:
                 continue
             mae_pos, mae_pts = _compute_mae(predictions, actuals)
+            rank_metrics = compute_rank_metrics(predictions, actuals)
             adjusted = price_adjust_predictions(predictions, test_event, rolling_scores, ps)
             constraints = {
                 "current_lineup": current_lineup,
@@ -185,6 +219,10 @@ class Backtester:
                 n_transfers=n_transfers,
                 lineup=new_lineup,
                 season_year=test_event.season.year,
+                spearman_rho=rank_metrics.spearman_rho,
+                top10_precision=rank_metrics.top10_precision,
+                top10_recall=rank_metrics.top10_recall,
+                ndcg_at_10=rank_metrics.ndcg_at_10,
             )
             race_results.append(race_result)
             if on_race_done:
