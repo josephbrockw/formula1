@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from django.conf import settings
 
-from core.models import Event, Lap, Session
+from core.models import Driver, Event, Lap, Session, SessionResult
 from predictions.features.v3_pandas import V3FeatureStore
 
 # ---------------------------------------------------------------------------
@@ -14,11 +14,21 @@ from predictions.features.v3_pandas import V3FeatureStore
 
 class V4FeatureStore:
     """
-    Extends V3FeatureStore with 8 new practice-telemetry features.
+    Extends V3FeatureStore with practice-telemetry and form-direction features.
 
-    These features are derived from FP lap data — long-run pace, tyre
-    degradation, sector times, lap counts, and session availability.
-    None of these signals were available in V1–V3.
+    Telemetry features (derived from FP lap data):
+      fp_long_run_pace_rank, fp_tyre_deg_rank, fp_sector1_rank,
+      fp_sector2_rank, fp_sector3_rank, fp_total_laps,
+      fp_session_availability, fp_short_vs_long_delta
+
+    Form-direction features (derived from recent race/quali results):
+      position_last1       — finishing position in the most recent race
+      position_slope       — OLS slope over last 5 races (negative = improving)
+      best_position_last5  — best (minimum) finishing position in last 5 races
+      teammate_delta       — driver_position_last1 - teammate_position_last1
+      team_best_position   — best finishing position across both cars, last 5 races
+      quali_last1          — qualifying position at the most recent event
+      quali_slope          — OLS slope of qualifying positions over last 5 events
     """
 
     def get_driver_features(self, driver_id: int, event_id: int) -> dict[str, float]:
@@ -35,6 +45,13 @@ class V4FeatureStore:
 
         event = Event.objects.get(pk=event_id)
         driver_ids = df["driver_id"].astype(int).tolist()
+
+        driver_rows = list(
+            Driver.objects.filter(id__in=driver_ids).values("id", "code", "team_id")
+        )
+        form_features = _compute_form_features(driver_rows, event)
+        for col, mapping in form_features.items():
+            df[col] = df["driver_id"].astype(int).map(mapping)
 
         fp_laps = _load_fp_laps(event)
 
@@ -248,6 +265,189 @@ def _fp_total_laps(fp_laps: pd.DataFrame, driver_ids: list[int]) -> dict[int, fl
 
     counts = fp_laps.groupby("driver_id").size()
     return {d: float(counts.get(d, 0)) for d in driver_ids}
+
+
+def _driver_recent_race_positions(
+    codes: list[str], event: Event, n: int = 5
+) -> dict[str, list[float]]:
+    """
+    Returns the last n race finishing positions per driver, in chronological order.
+
+    Queries by driver.code so the same driver across different seasons (e.g.
+    VER-2024 and VER-2025) is matched correctly — the same cross-season pattern
+    used in V3.
+
+    DNF detection: status != "Finished" and not starting with "+" means the
+    driver started but failed to finish. We assign 20.0 (worse than last place,
+    to distinguish from a true backmarker finish). This is consistent with V1.
+
+    Returns an empty list for drivers with no prior race data.
+    """
+    rows = list(
+        SessionResult.objects.filter(
+            driver__code__in=codes,
+            session__session_type="R",
+            session__event__event_date__lt=event.event_date,
+        )
+        .select_related("session__event")
+        .order_by("driver__code", "-session__event__event_date")
+        .values("driver__code", "position", "status", "session__event__event_date")
+    )
+
+    by_code: dict[str, list[float]] = {c: [] for c in codes}
+    # rows are ordered newest-first per driver; we collect up to n then reverse
+    temp: dict[str, list[float]] = {c: [] for c in codes}
+    for row in rows:
+        code = row["driver__code"]
+        if len(temp[code]) >= n:
+            continue
+        status = row["status"] or ""
+        if status == "Finished" or status.startswith("+"):
+            pos = float(row["position"]) if row["position"] is not None else 20.0
+        else:
+            pos = 20.0
+        temp[code].append(pos)
+
+    for code, positions in temp.items():
+        by_code[code] = list(reversed(positions))  # chronological ascending
+
+    return by_code
+
+
+def _driver_recent_quali_positions(
+    codes: list[str], event: Event, n: int = 5
+) -> dict[str, list[float]]:
+    """
+    Same as _driver_recent_race_positions but for qualifying sessions.
+
+    Qualifying has no DNF concept; we use the classified position directly.
+    Null positions (e.g. driver did not set a time) default to 20.0.
+    """
+    rows = list(
+        SessionResult.objects.filter(
+            driver__code__in=codes,
+            session__session_type="Q",
+            session__event__event_date__lt=event.event_date,
+        )
+        .select_related("session__event")
+        .order_by("driver__code", "-session__event__event_date")
+        .values("driver__code", "position", "session__event__event_date")
+    )
+
+    by_code: dict[str, list[float]] = {c: [] for c in codes}
+    temp: dict[str, list[float]] = {c: [] for c in codes}
+    for row in rows:
+        code = row["driver__code"]
+        if len(temp[code]) >= n:
+            continue
+        pos = float(row["position"]) if row["position"] is not None else 20.0
+        temp[code].append(pos)
+
+    for code, positions in temp.items():
+        by_code[code] = list(reversed(positions))
+
+    return by_code
+
+
+def _ols_slope(values: list[float]) -> float:
+    """
+    OLS slope of a sequence of values against their index positions.
+
+    Returns 0.0 when fewer than 2 data points are available.
+    Negative slope means values are decreasing (improving positions).
+
+    Reuses the np.polyfit approach from fantasy_points_trend_last5 in V2.
+    """
+    if len(values) < 2:
+        return 0.0
+    return float(np.polyfit(range(len(values)), values, 1)[0])
+
+
+def _compute_form_features(
+    driver_rows: list[dict], event: Event
+) -> dict[str, dict[int, float]]:
+    """
+    Computes all 7 form-direction features and returns them as a dict of
+    {feature_name: {driver_id: value}} mappings, ready to be assigned to df.
+
+    driver_rows is a list of dicts with keys: id, code, team_id.
+
+    Design notes:
+    - teammate_delta uses last1 (not last5) to capture current form vs teammate,
+      providing a different signal from v3's rolling driver_vs_teammate_gap_last5.
+    - team_best_position uses last5 to capture the car's ceiling — what's the
+      best this car can do recently, not just last race.
+    - position_slope is negative when improving (smaller position number = better).
+    """
+    from django.conf import settings
+
+    DEFAULT_POS = settings.NEW_ENTRANT_POSITION_DEFAULT
+    codes = [r["code"] for r in driver_rows]
+
+    race_positions = _driver_recent_race_positions(codes, event)
+    quali_positions = _driver_recent_quali_positions(codes, event)
+
+    # Build per-driver scalar features first, keyed by driver id
+    position_last1: dict[int, float] = {}
+    position_slope: dict[int, float] = {}
+    best_position_last5: dict[int, float] = {}
+    quali_last1: dict[int, float] = {}
+    quali_slope: dict[int, float] = {}
+
+    code_to_id = {r["code"]: r["id"] for r in driver_rows}
+
+    for r in driver_rows:
+        driver_id = r["id"]
+        code = r["code"]
+
+        rpos = race_positions[code]
+        qpos = quali_positions[code]
+
+        position_last1[driver_id] = rpos[-1] if rpos else DEFAULT_POS
+        position_slope[driver_id] = _ols_slope(rpos)
+        best_position_last5[driver_id] = min(rpos) if rpos else DEFAULT_POS
+        quali_last1[driver_id] = qpos[-1] if qpos else DEFAULT_POS
+        quali_slope[driver_id] = _ols_slope(qpos)
+
+    # Teammate delta and team best position require grouping by team
+    teammate_delta: dict[int, float] = {}
+    team_best_position: dict[int, float] = {}
+
+    # Group driver rows by team_id
+    from collections import defaultdict as _defaultdict
+    teams: dict[int, list[dict]] = _defaultdict(list)
+    for r in driver_rows:
+        teams[r["team_id"]].append(r)
+
+    for team_id, members in teams.items():
+        # team_best_position: min finishing position across all team members, last 5 races
+        all_race_pos: list[float] = []
+        for m in members:
+            all_race_pos.extend(race_positions[m["code"]])
+        tbp = min(all_race_pos) if all_race_pos else DEFAULT_POS
+        for m in members:
+            team_best_position[m["id"]] = tbp
+
+        # teammate_delta: only meaningful when exactly 2 drivers on the team
+        if len(members) == 2:
+            d1, d2 = members[0], members[1]
+            delta_d1 = position_last1[d1["id"]] - position_last1[d2["id"]]
+            delta_d2 = position_last1[d2["id"]] - position_last1[d1["id"]]
+            teammate_delta[d1["id"]] = delta_d1
+            teammate_delta[d2["id"]] = delta_d2
+        else:
+            for m in members:
+                teammate_delta[m["id"]] = 0.0
+
+    return {
+        "position_last1": position_last1,
+        "position_slope": position_slope,
+        "best_position_last5": best_position_last5,
+        "teammate_delta": teammate_delta,
+        "team_best_position": team_best_position,
+        "quali_last1": quali_last1,
+        "quali_slope": quali_slope,
+    }
 
 
 def _fp_session_availability(event: Event) -> float:

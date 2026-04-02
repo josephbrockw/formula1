@@ -6,12 +6,16 @@ from django.test import TestCase
 
 from predictions.features.v4 import (
     V4FeatureStore,
+    _compute_form_features,
+    _driver_recent_quali_positions,
+    _driver_recent_race_positions,
     _fp_long_run_pace_ranks,
     _fp_sector_ranks,
     _fp_session_availability,
     _fp_total_laps,
     _fp_tyre_deg_ranks,
     _load_fp_laps,
+    _ols_slope,
 )
 from predictions.tests.factories import (
     make_circuit,
@@ -25,9 +29,9 @@ from predictions.tests.factories import (
 )
 from predictions.tests.factories import make_lap
 
-# V3 has 26 features; V4 adds 8 new ones.
+# V3 has 26 features; V4 adds 8 telemetry + 7 form-direction = 15 new ones.
 V3_FEATURE_COUNT = 26
-V4_NEW_FEATURE_COUNT = 8
+V4_NEW_FEATURE_COUNT = 15
 
 
 # ---------------------------------------------------------------------------
@@ -395,3 +399,227 @@ class SprintWeekendTest(TestCase):
         self.assertTrue((df["fp_total_laps"] >= 0).all())
         # fp_session_availability should be 1.0 (only FP1)
         self.assertTrue((df["fp_session_availability"] == 1.0).all())
+
+
+# ---------------------------------------------------------------------------
+# _ols_slope
+# ---------------------------------------------------------------------------
+
+
+class OlsSlopeTest(TestCase):
+    def test_flat_sequence_returns_zero(self):
+        self.assertAlmostEqual(_ols_slope([5.0, 5.0, 5.0]), 0.0)
+
+    def test_improving_positions_negative_slope(self):
+        # Positions 8, 6, 4, 2 — decreasing = improving
+        slope = _ols_slope([8.0, 6.0, 4.0, 2.0])
+        self.assertLess(slope, 0.0)
+
+    def test_worsening_positions_positive_slope(self):
+        slope = _ols_slope([2.0, 4.0, 6.0, 8.0])
+        self.assertGreater(slope, 0.0)
+
+    def test_fewer_than_2_points_returns_zero(self):
+        self.assertEqual(_ols_slope([]), 0.0)
+        self.assertEqual(_ols_slope([5.0]), 0.0)
+
+
+# ---------------------------------------------------------------------------
+# _driver_recent_race_positions
+# ---------------------------------------------------------------------------
+
+
+class DriverRecentRacePositionsTest(TestCase):
+    def setUp(self):
+        self.season = make_season(2024)
+        self.circuit = make_circuit()
+        self.team = make_team(self.season, name="Ferrari", code="FER")
+        self.d1 = make_driver(self.season, self.team, code="LEC", driver_number=16)
+        # Target event — positions before this date are counted
+        self.target_event = make_event(
+            self.season, round_number=10, circuit=self.circuit,
+            event_date=date(2024, 10, 1)
+        )
+
+    def _make_race(self, round_number, event_date, driver, position=1, status="Finished"):
+        event = make_event(self.season, round_number=round_number, event_date=event_date)
+        session = make_session(event, session_type="R")
+        make_result(session, driver, self.team, position=position, status=status)
+        return event
+
+    def test_returns_positions_in_chronological_order(self):
+        self._make_race(1, date(2024, 1, 1), self.d1, position=5)
+        self._make_race(2, date(2024, 2, 1), self.d1, position=3)
+        self._make_race(3, date(2024, 3, 1), self.d1, position=1)
+        result = _driver_recent_race_positions(["LEC"], self.target_event)
+        self.assertEqual(result["LEC"], [5.0, 3.0, 1.0])
+
+    def test_dnf_mapped_to_20(self):
+        self._make_race(1, date(2024, 1, 1), self.d1, position=None, status="Engine")
+        result = _driver_recent_race_positions(["LEC"], self.target_event)
+        self.assertEqual(result["LEC"], [20.0])
+
+    def test_lapped_finisher_not_dnf(self):
+        # "+1 Lap" means the driver finished, just a lap down — NOT a DNF
+        self._make_race(1, date(2024, 1, 1), self.d1, position=12, status="+1 Lap")
+        result = _driver_recent_race_positions(["LEC"], self.target_event)
+        self.assertEqual(result["LEC"], [12.0])
+
+    def test_limited_to_n_most_recent(self):
+        for i in range(1, 8):
+            self._make_race(i, date(2024, i, 1), self.d1, position=i)
+        result = _driver_recent_race_positions(["LEC"], self.target_event, n=5)
+        # Should return only the 5 most recent (rounds 3–7)
+        self.assertEqual(result["LEC"], [3.0, 4.0, 5.0, 6.0, 7.0])
+
+    def test_future_races_excluded(self):
+        # This race is AFTER the target event — must not be counted
+        self._make_race(11, date(2024, 11, 1), self.d1, position=1)
+        result = _driver_recent_race_positions(["LEC"], self.target_event)
+        self.assertEqual(result["LEC"], [])
+
+    def test_rookie_returns_empty_list(self):
+        result = _driver_recent_race_positions(["LEC"], self.target_event)
+        self.assertEqual(result["LEC"], [])
+
+
+# ---------------------------------------------------------------------------
+# _driver_recent_quali_positions
+# ---------------------------------------------------------------------------
+
+
+class DriverRecentQualiPositionsTest(TestCase):
+    def setUp(self):
+        self.season = make_season(2024)
+        self.circuit = make_circuit()
+        self.team = make_team(self.season, name="Ferrari", code="FER")
+        self.d1 = make_driver(self.season, self.team, code="LEC", driver_number=16)
+        self.target_event = make_event(
+            self.season, round_number=10, circuit=self.circuit,
+            event_date=date(2024, 10, 1)
+        )
+
+    def _make_quali(self, round_number, event_date, driver, position=1):
+        event = make_event(self.season, round_number=round_number, event_date=event_date)
+        session = make_session(event, session_type="Q")
+        make_result(session, driver, self.team, position=position)
+
+    def test_returns_quali_positions_chronologically(self):
+        self._make_quali(1, date(2024, 1, 1), self.d1, position=3)
+        self._make_quali(2, date(2024, 2, 1), self.d1, position=1)
+        result = _driver_recent_quali_positions(["LEC"], self.target_event)
+        self.assertEqual(result["LEC"], [3.0, 1.0])
+
+    def test_null_position_defaults_to_20(self):
+        event = make_event(self.season, round_number=1, event_date=date(2024, 1, 1))
+        session = make_session(event, session_type="Q")
+        make_result(session, self.d1, self.team, position=None)
+        result = _driver_recent_quali_positions(["LEC"], self.target_event)
+        self.assertEqual(result["LEC"], [20.0])
+
+
+# ---------------------------------------------------------------------------
+# _compute_form_features
+# ---------------------------------------------------------------------------
+
+
+class ComputeFormFeaturesTest(TestCase):
+    def setUp(self):
+        from django.conf import settings
+        self.DEFAULT = settings.NEW_ENTRANT_POSITION_DEFAULT
+
+        self.season = make_season(2024)
+        self.circuit = make_circuit()
+        self.team = make_team(self.season, name="Ferrari", code="FER")
+        self.d1 = make_driver(self.season, self.team, code="LEC", driver_number=16)
+        self.d2 = make_driver(self.season, self.team, code="SAI", driver_number=55)
+        self.target_event = make_event(
+            self.season, round_number=10, circuit=self.circuit,
+            event_date=date(2024, 10, 1)
+        )
+        self.driver_rows = list(
+            __import__("core.models", fromlist=["Driver"]).Driver.objects.filter(
+                id__in=[self.d1.id, self.d2.id]
+            ).values("id", "code", "team_id")
+        )
+
+    def _make_race(self, round_number, event_date, driver, position=1, status="Finished"):
+        event = make_event(self.season, round_number=round_number, event_date=event_date)
+        session = make_session(event, session_type="R")
+        make_result(session, driver, self.team, position=position, status=status)
+
+    def _make_quali(self, round_number, event_date, driver, position=1):
+        event = make_event(self.season, round_number=round_number, event_date=event_date)
+        session = make_session(event, session_type="Q")
+        make_result(session, driver, self.team, position=position)
+
+    def test_position_last1_is_most_recent_race(self):
+        self._make_race(1, date(2024, 1, 1), self.d1, position=5)
+        self._make_race(2, date(2024, 2, 1), self.d1, position=2)
+        features = _compute_form_features(self.driver_rows, self.target_event)
+        self.assertEqual(features["position_last1"][self.d1.id], 2.0)
+
+    def test_best_position_last5_is_minimum(self):
+        for i, pos in enumerate([8, 3, 12, 5, 6], start=1):
+            self._make_race(i, date(2024, i, 1), self.d1, position=pos)
+        features = _compute_form_features(self.driver_rows, self.target_event)
+        self.assertEqual(features["best_position_last5"][self.d1.id], 3.0)
+
+    def test_position_slope_negative_when_improving(self):
+        # 8 → 6 → 4 → 2: positions getting smaller (better)
+        for i, pos in enumerate([8, 6, 4, 2], start=1):
+            self._make_race(i, date(2024, i, 1), self.d1, position=pos)
+        features = _compute_form_features(self.driver_rows, self.target_event)
+        self.assertLess(features["position_slope"][self.d1.id], 0.0)
+
+    def test_position_slope_zero_with_one_race(self):
+        self._make_race(1, date(2024, 1, 1), self.d1, position=5)
+        features = _compute_form_features(self.driver_rows, self.target_event)
+        self.assertEqual(features["position_slope"][self.d1.id], 0.0)
+
+    def test_rookie_defaults(self):
+        features = _compute_form_features(self.driver_rows, self.target_event)
+        self.assertEqual(features["position_last1"][self.d1.id], self.DEFAULT)
+        self.assertEqual(features["best_position_last5"][self.d1.id], self.DEFAULT)
+        self.assertEqual(features["position_slope"][self.d1.id], 0.0)
+        self.assertEqual(features["quali_last1"][self.d1.id], self.DEFAULT)
+        self.assertEqual(features["quali_slope"][self.d1.id], 0.0)
+
+    def test_teammate_delta_negative_when_driver_ahead(self):
+        # Both drivers in the same race: d1 P2, d2 P5 → delta for d1 = 2 - 5 = -3
+        event = make_event(self.season, round_number=1, circuit=self.circuit, event_date=date(2024, 1, 1))
+        session = make_session(event, session_type="R")
+        make_result(session, self.d1, self.team, position=2)
+        make_result(session, self.d2, self.team, position=5)
+        features = _compute_form_features(self.driver_rows, self.target_event)
+        self.assertAlmostEqual(features["teammate_delta"][self.d1.id], -3.0)
+        self.assertAlmostEqual(features["teammate_delta"][self.d2.id], 3.0)
+
+    def test_teammate_delta_zero_when_no_history(self):
+        # Neither driver has raced — both default positions are equal → delta = 0
+        features = _compute_form_features(self.driver_rows, self.target_event)
+        self.assertEqual(features["teammate_delta"][self.d1.id], 0.0)
+
+    def test_team_best_position_is_min_across_both_drivers(self):
+        # d1 best: P3, d2 best: P1 → team best = P1 (for both)
+        c2 = make_circuit(key="circuit_r2")
+        e1 = make_event(self.season, round_number=1, circuit=self.circuit, event_date=date(2024, 1, 1))
+        e2 = make_event(self.season, round_number=2, circuit=c2, event_date=date(2024, 2, 1))
+        s1 = make_session(e1, session_type="R")
+        s2 = make_session(e2, session_type="R")
+        make_result(s1, self.d1, self.team, position=3)
+        make_result(s2, self.d1, self.team, position=8)
+        make_result(s1, self.d2, self.team, position=1)
+        make_result(s2, self.d2, self.team, position=10)
+        features = _compute_form_features(self.driver_rows, self.target_event)
+        self.assertEqual(features["team_best_position"][self.d1.id], 1.0)
+        self.assertEqual(features["team_best_position"][self.d2.id], 1.0)
+
+    def test_quali_last1_and_slope(self):
+        self._make_quali(1, date(2024, 1, 1), self.d1, position=5)
+        self._make_quali(2, date(2024, 2, 1), self.d1, position=3)
+        self._make_quali(3, date(2024, 3, 1), self.d1, position=1)
+        features = _compute_form_features(self.driver_rows, self.target_event)
+        self.assertEqual(features["quali_last1"][self.d1.id], 1.0)
+        # 5 → 3 → 1 is improving → negative slope
+        self.assertLess(features["quali_slope"][self.d1.id], 0.0)

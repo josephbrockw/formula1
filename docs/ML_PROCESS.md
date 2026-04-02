@@ -14,7 +14,8 @@ core app (existing)          predictions app (new)
 Season                  →    Feature Store
 Circuit                      ├── v1_pandas.V1FeatureStore  (15 features)
 Team                         ├── v2_pandas.V2FeatureStore  (25 features — weather, car-circuit fit, driver intelligence)
-Driver                       └── v3_pandas.V3FeatureStore  (29 features — richer wet weather, pruned zero-importance) ← current best
+Driver                       ├── v3_pandas.V3FeatureStore  (29 features — richer wet weather, pruned zero-importance)
+SessionResult                └── v4.V4FeatureStore         (44 features — adds 8 FP telemetry + 7 form-direction) ← current best
 Event                                      │
 Session                                    ▼
 SessionResult                Performance Predictor
@@ -58,7 +59,7 @@ python manage.py backtest --seasons 2022 2023 2024 2025 --min-train 5
 ```
 
 Options:
-- `--feature-store v1|v2|v3` (default: v2) — one or more versions to sweep
+- `--feature-store v1|v2|v3|v4` (default: v2) — one or more versions to sweep
 - `--predictor v1|v2|v3|v4` (default: v2) — one or more versions to sweep
 - `--optimizer v1|v2|v3|v4` (default: v2) — one or more versions to sweep
 - `--min-train N` (default: 5) — minimum races before making the first prediction
@@ -229,6 +230,79 @@ For each (driver, event) pair, the feature store returns a flat `dict[str, float
 - **`practice_best_lap_rank` vs `practice_avg_best_5_rank`:** Best single lap correlates with qualifying pace (maximum effort, fresh tyres, low fuel). Average of 5 best laps correlates with race pace (sustainable effort across stints). A driver with a big gap between these two ranks may be fast in bursts but degrades.
 - **Defaults for missing data:** Every feature has a sensible mid-field default (position 10, rank 10, rate 0.0) so new drivers or events with incomplete data still produce a valid feature vector. ML models require a number for every feature.
 - **`team_position_mean_last5` stays same-season:** Team is also a per-season model. For constructor form we use the current season's team record, which is correct — we want to know how the current car is performing, not how a driver's historical team performed.
+
+---
+
+## Feature Store v4
+
+**Location:** `f1_data/predictions/features/v4.py`
+
+**What was built:**
+
+- `predictions/features/v4.py` — `V4FeatureStore` extending V3 with 15 new features
+- `predictions/tests/test_features_v4.py` — 45 tests (telemetry + form direction)
+
+V4 adds two groups of features on top of V3's 29:
+
+### Group 1 — Practice Telemetry (8 features)
+
+These come from FP lap data — signals that weren't available in V1–V3 at all.
+
+| Feature | What it measures |
+|---------|-----------------|
+| `fp_long_run_pace_rank` | Median lap time in qualifying long-run stints (≥5 laps), ranked 1=fastest. Prefers FP2; falls back to FP1+FP2 if fewer than half the field have FP2 long-run data. |
+| `fp_tyre_deg_rank` | Average OLS slope of lap time vs tyre age in FP2 long runs, ranked 1=lowest degradation. |
+| `fp_sector1_rank` | Best sector 1 time across all FP sessions, ranked 1=fastest. |
+| `fp_sector2_rank` | Same for sector 2. |
+| `fp_sector3_rank` | Same for sector 3. |
+| `fp_total_laps` | Total FP laps (all sessions, passing quality filters). Low count signals setup problems. |
+| `fp_session_availability` | Number of FP sessions with any lap data (0–3). Sprint weekends give 1.0. |
+| `fp_short_vs_long_delta` | `practice_best_lap_rank - fp_long_run_pace_rank`. Positive = stronger in short bursts (quali specialist); negative = stronger in sustained pace (race specialist). |
+
+All rank features default to 10.5 (mid-field) when data is absent.
+
+### Group 2 — Form Direction (7 features)
+
+These capture the *trend* in a driver's recent results, not just the average. A driver going 5→4→3 and one going 3→4→5 look identical to V3's `position_mean_last3` but are very different situations.
+
+| Feature | Definition | Default |
+|---------|-----------|---------|
+| `position_last1` | Finishing position in the most recent race | 18.0 (NEW_ENTRANT_POSITION_DEFAULT) |
+| `position_slope` | OLS slope of finishing positions over last 5 races. Negative = improving. | 0.0 |
+| `best_position_last5` | Best (minimum) finishing position in last 5 races. DNFs → 20.0. | 18.0 |
+| `teammate_delta` | `driver_position_last1 - teammate_position_last1`. Negative = driver beat teammate. | 0.0 |
+| `team_best_position` | Minimum finishing position across both team cars over last 5 races. Car ceiling signal. | 18.0 |
+| `quali_last1` | Qualifying position at the most recent event. | 18.0 |
+| `quali_slope` | OLS slope of qualifying positions over last 5 events. Negative = improving. | 0.0 |
+
+**Key decisions:**
+
+- **Cross-season query by `driver__code`:** Same pattern as V3 — `VER-2024` and `VER-2025` are different DB records but the same driver. Querying by code gives correct multi-season history.
+- **DNF → 20.0, rookie → 18.0:** A driver who retires started the race and failed — slightly worse than last place. A true rookie has never raced — mid-field default of 18.0 is more neutral. Consistent with V1's convention.
+- **`teammate_delta` uses last1:** Provides a different signal from V3's rolling `driver_vs_teammate_gap_last5`. The single last-race delta captures current form momentum vs teammate, not the rolling average.
+- **`team_best_position` uses last5:** The "car ceiling" — what's the best this car can do recently? Useful for distinguishing a team with one lucky outlier race vs consistently strong pace.
+- **OLS slope via `np.polyfit`:** Same approach as `fantasy_points_trend_last5` in V2. Requires ≥2 data points; defaults to 0.0 when insufficient (first 3 rounds of a season).
+
+**Verification:**
+
+```bash
+python manage.py test predictions.tests.test_features_v4
+
+# Sanity check: print form features for one event
+python manage.py shell -c "
+from predictions.features.v4 import V4FeatureStore
+from core.models import Event
+e = Event.objects.filter(season__year=2024).order_by('event_date')[5]
+fs = V4FeatureStore()
+df = fs.get_all_driver_features(e.id)
+print(df[['driver_id','position_last1','position_slope','best_position_last5','teammate_delta','team_best_position','quali_last1','quali_slope']].to_string())
+"
+
+# Backtest comparing V3 vs V4 feature stores
+python manage.py backtest --feature-store v3 v4 --predictor v4 --optimizer v4 --seasons 2024
+```
+
+New features are non-null for most drivers from round 4 onwards (first 3 rounds lack enough history for slopes).
 
 ---
 

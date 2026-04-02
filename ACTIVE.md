@@ -1,208 +1,123 @@
 # Active Plan 
+PR 5 — Form Direction + Car Separation Features
 
- Plan: PR 4 — Feature Store v4 (Practice Telemetry)
+Context
 
- Context
+The v4 feature store currently lives in f1_data/predictions/features/v4.py. Per ML_UPGRADE_INTEGRATION.md, f1_data/predictions/features/v4.py should contain
+telemetry + form direction features. This PR adds 7 new features capturing the direction of a driver's form and relative strength vs their teammate.
 
- V1–V3 feature stores use no practice lap data beyond a single-number "best lap rank" and "avg best-5 rank" (already in V1). This PR adds eight new features derived from the Lap model — long-run race pace, tyre degradation, sector times, lap
-  counts, session availability — giving the model signal that's genuinely predictive of race results and entirely unavailable before. V4 extends V3 in the same chain pattern as all prior versions.
-
- ---
- New features
-
- ┌─────────────────────────┬─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┬───────────────────────────────────────────────┐
- │         Feature         │                                                                    What it captures                                                                     │                    Source                     │
- ├─────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────┤
- │ fp_long_run_pace_rank   │ Median lap time in stints ≥5 laps (same compound, accurate laps only). Rank 1=fastest. Best single proxy for race pace.                                 │ FP2 preferred; FP1 fallback                   │
- ├─────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────┤
- │ fp_tyre_deg_rank        │ Slope of lap_time vs tyre_life within long-run stints. Rank 1=lowest degradation.                                                                       │ FP2 preferred                                 │
- ├─────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────┤
- │ fp_short_vs_long_delta  │ practice_best_lap_rank - fp_long_run_pace_rank. Positive = stronger in quali than race, negative = stronger in race than quali.                         │ Derived from existing V3 column + new feature │
- ├─────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────┤
- │ fp_sector1_rank         │ Best sector 1 time rank across FP1–FP3. Accurate, non-pit laps only.                                                                                    │ FP1+FP2+FP3                                   │
- ├─────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────┤
- │ fp_sector2_rank         │ Best sector 2 time rank.                                                                                                                                │ Same                                          │
- ├─────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────┤
- │ fp_sector3_rank         │ Best sector 3 time rank.                                                                                                                                │ Same                                          │
- ├─────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────┤
- │ fp_total_laps           │ Total FP laps completed. Low count signals setup problems or mechanical issues.                                                                         │ FP1+FP2+FP3                                   │
- ├─────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────┤
- │ fp_session_availability │ Count of FP sessions with any lap data (1 for sprint weekends, up to 3 for conventional). Lets the model discount telemetry features when data is thin. │ Session existence                             │
- └─────────────────────────┴─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┴───────────────────────────────────────────────┘
+The current feature store averages (e.g. position_mean_last3) lose information about trend: a driver who finished 5th, 4th, 3rd in recent races looks the same as
+one who finished 3rd, 4th, 5th. Slope and recency features fix this.
 
  ---
- Filter logic (shared across all lap-based features)
+Files to Change
 
- Lap.objects.filter(
-     session__event=event,
-     session__session_type__in=["FP1", "FP2", "FP3"],
-     is_accurate=True,
-     is_pit_in_lap=False,
-     is_pit_out_lap=False,
-     lap_time__isnull=False,
- )
-
- For long-run features: additionally require compound__isnull=False, stint__isnull=False, tyre_life__isnull=False.
-
- Load all filtered laps for the event in one query using .values(...) — don't query per driver. Process in Python/pandas.
-
- "Long run" definition: a group of laps sharing the same (driver_id, session_type, stint, compound) with count ≥ 5. This avoids treating outlap/inlap bursts as meaningful pace data.
+┌─────────────────────────────────────────────────────────┬─────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                          File                           │                                             Action                                              │
+├─────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ f1_data/predictions/features/v4.py                      │ add 7 new features                                                                              │
+├─────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────┤
 
  ---
- Implementation
+7 New Features
 
- 1. Extend make_lap factory — predictions/tests/factories.py
+Race form direction
 
- Add optional kwargs so tests can build realistic lap data:
+┌─────────────────────┬─────────────────────────────────────────────────────────────────────────────────────┬─────────────────────────────────────┐
+│       Feature       │                                     Definition                                      │               Default               │
+├─────────────────────┼─────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────┤
+│ position_last1      │ Finishing position in the most recent race                                          │ NEW_ENTRANT_POSITION_DEFAULT (18.0) │
+├─────────────────────┼─────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────┤
+│ position_slope      │ OLS slope of finishing positions over last 5 races (negative = improving)           │ 0.0                                 │
+├─────────────────────┼─────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────┤
+│ best_position_last5 │ Best (minimum) finishing position in last 5 races (DNFs → 20.0)                     │ NEW_ENTRANT_POSITION_DEFAULT        │
+├─────────────────────┼─────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────┤
+│ teammate_delta      │ driver_position_last1 - teammate_position_last1 (negative = driver ahead last race) │ 0.0                                 │
+├─────────────────────┼─────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────┤
+│ team_best_position  │ Minimum finishing position across both team cars in last 5 races                    │ NEW_ENTRANT_POSITION_DEFAULT        │
+└─────────────────────┴─────────────────────────────────────────────────────────────────────────────────────┴─────────────────────────────────────┘
+
+Qualifying trajectory
+
+┌─────────────┬─────────────────────────────────────────────────────────────────────────────┬──────────────────────────────┐
+│   Feature   │                                 Definition                                  │           Default            │
+├─────────────┼─────────────────────────────────────────────────────────────────────────────┼──────────────────────────────┤
+│ quali_last1 │ Qualifying position at the most recent event                                │ NEW_ENTRANT_POSITION_DEFAULT │
+├─────────────┼─────────────────────────────────────────────────────────────────────────────┼──────────────────────────────┤
+│ quali_slope │ OLS slope of qualifying positions over last 5 events (negative = improving) │ 0.0                          │
+└─────────────┴─────────────────────────────────────────────────────────────────────────────┴──────────────────────────────┘
+
+ ---
+Implementation Approach
+
+1. Add private helpers in f1_data/predictions/features/v4.py (after the existing FP helpers)
+
+_driver_recent_race_positions(codes, event, n=5)
+- Query SessionResult for session_type="R", ordered by event_date desc, limited to n races before this event
+- Returns dict[str, list[float]] (driver code → positions chronologically ascending)
+- Use driver__code__in=codes for batch query (same cross-season pattern as v3)
+- DNF detection: same as v1 — not (status == "Finished" or status.startswith("+")) → assign 20.0
+
+_driver_recent_quali_positions(codes, event, n=5)
+- Same as above but session_type="Q"
+
+_compute_form_features(driver_rows, event)
+- Calls the two helpers above
+- Computes per driver:
+    - position_last1: last element of sorted positions (or default)
+    - position_slope: np.polyfit(range(len(positions)), positions, 1)[0] when ≥2 points
+    - best_position_last5: min of positions
+    - quali_last1, quali_slope: same logic for quali
+- Computes per team (group driver_rows by team_id):
+    - teammate_delta: driver_last1 - teammate_last1 (0.0 if no teammate or insufficient data)
+    - team_best_position: min across all drivers in team over last 5 races
+
+2. Wire into get_all_driver_features()
+
+After the FP telemetry block (existing v4 code), add:
+
 ```python
- def make_lap(
-     session, driver, lap_number=1, lap_time_seconds=90.0, is_accurate=True,
-     compound=None, tyre_life=None, stint=None,
-     sector1_seconds=None, sector2_seconds=None, sector3_seconds=None,
-     is_pit_in_lap=False, is_pit_out_lap=False,
- )
-```
- Convert sector_seconds → timedelta the same way lap_time_seconds is handled.
-
- 2. Create predictions/features/v4.py
-
- Structure:
-
-```python
- class V4FeatureStore:
-     def get_all_driver_features(self, event_id: int) -> pd.DataFrame:
-         df = V3FeatureStore().get_all_driver_features(event_id)
-         # Load all FP laps once
-         fp_laps = _load_fp_laps(event)
-         driver_ids = df["driver_id"].tolist()
-
-         long_run_ranks = _fp_long_run_pace_ranks(fp_laps, driver_ids)
-         deg_ranks = _fp_tyre_deg_ranks(fp_laps, driver_ids)
-         sector_ranks = _fp_sector_ranks(fp_laps, driver_ids)
-
-         df["fp_long_run_pace_rank"]  = df["driver_id"].map(long_run_ranks)
-         df["fp_tyre_deg_rank"]       = df["driver_id"].map(deg_ranks)
-         df["fp_sector1_rank"]        = df["driver_id"].map(lambda d: sector_ranks[d][0])
-         df["fp_sector2_rank"]        = df["driver_id"].map(lambda d: sector_ranks[d][1])
-         df["fp_sector3_rank"]        = df["driver_id"].map(lambda d: sector_ranks[d][2])
-         df["fp_total_laps"]          = df["driver_id"].map(_fp_total_laps(fp_laps, driver_ids))
-         df["fp_session_availability"] = _fp_session_availability(event)
-         # Derived — uses existing V3 column
-         df["fp_short_vs_long_delta"] = df["practice_best_lap_rank"] - df["fp_long_run_pace_rank"]
-         return df
+driver_rows = list(
+Driver.objects.filter(id__in=driver_ids).values("id", "code", "team_id")
+)
+form_features = _compute_form_features(driver_rows, event)
+for col, mapping in form_features.items():
+df[col] = df["driver_id"].astype(int).map(mapping)
 ```
 
- Private helpers (all take the pre-loaded fp_laps DataFrame):
+3. Update the class docstring
 
- _load_fp_laps(event) — single DB query, returns pandas DataFrame with columns: driver_id, session_type, lap_time_seconds (converted from timedelta), tyre_life, stint, compound, sector1_seconds, sector2_seconds, sector3_seconds.
-
- _fp_long_run_pace_ranks(fp_laps, driver_ids) → {driver_id: float}:
- - Filter to FP2 laps first; if fewer than N drivers have ≥1 qualifying long-run stint, add FP1
- - Group by (driver_id, stint, compound), keep groups with count ≥ 5
- - Median lap_time_seconds per driver across all qualifying stints
- - Rank ascending (1=fastest); default 10.5 for missing drivers
-
- _fp_tyre_deg_ranks(fp_laps, driver_ids) → {driver_id: float}:
- - Same long-run stints as above (FP2 preferred)
- - For each qualifying stint: slope, _ = np.polyfit(tyre_life_array, lap_time_array, 1)
- - Average slope per driver across stints (more stints = more reliable)
- - Rank ascending (1=lowest slope = least degradation); default 10.5
-
- _fp_sector_ranks(fp_laps, driver_ids) → {driver_id: (s1_rank, s2_rank, s3_rank)}:
- - Use all FP1+FP2+FP3 laps (sectors are usually set in qualifying simulation runs)
- - Filter: sector time not null
- - Best (minimum) sector time per driver
- - Rank each sector independently; default 10.5
-
- _fp_total_laps(fp_laps, driver_ids) → {driver_id: float}:
- - Count rows per driver in all FP sessions; default 0.0
-
- _fp_session_availability(event) → float:
- - Session.objects.filter(event=event, session_type__in=["FP1","FP2","FP3"]).values_list("session_type", flat=True).distinct()
- - Return count as float (0.0–3.0)
-
- 3. Register v4 — two places
-
- predictions/management/commands/backtest.py:
- from predictions.features.v4 import V4FeatureStore
- _FEATURE_STORE_REGISTRY = {"v1": ..., "v2": ..., "v3": ..., "v4": V4FeatureStore}
-
- f1_data/settings.py:
- ML_FEATURE_STORE_VERSIONS: list[str] = ["v1", "v2", "v3", "v4"]
+Add the 7 new features to the list.
 
  ---
- Default values (when a driver has no practice data)
+Key design decisions
 
- ┌─────────────────────────┬─────────┬───────────────────────────────────┐
- │         Feature         │ Default │             Rationale             │
- ├─────────────────────────┼─────────┼───────────────────────────────────┤
- │ fp_long_run_pace_rank   │ 10.5    │ Midfield; no signal = average     │
- ├─────────────────────────┼─────────┼───────────────────────────────────┤
- │ fp_tyre_deg_rank        │ 10.5    │ Same                              │
- ├─────────────────────────┼─────────┼───────────────────────────────────┤
- │ fp_sector[1-3]_rank     │ 10.5    │ Same                              │
- ├─────────────────────────┼─────────┼───────────────────────────────────┤
- │ fp_short_vs_long_delta  │ 0.0     │ No information = no delta         │
- ├─────────────────────────┼─────────┼───────────────────────────────────┤
- │ fp_total_laps           │ 0.0     │ Explicitly no data                │
- ├─────────────────────────┼─────────┼───────────────────────────────────┤
- │ fp_session_availability │ 0.0     │ Computable from session existence │
- └─────────────────────────┴─────────┴───────────────────────────────────┘
+- Reuse driver__code cross-season pattern: Same as v3 — queries by driver.code so VER-2024 and VER-2025 are matched correctly. Avoids the "all rookies look the
+  same" problem.
+- DNF → 20.0: Consistent with v1's existing convention (NEW_ENTRANT_POSITION_DEFAULT = 18.0 is for true rookies; DNFs get 20 since they started the race and failed
+  to finish — slightly worse than last place).
+- teammate_delta uses last1 not last5: Provides a different signal from the existing driver_vs_teammate_gap_last5 in v3 (which is a rolling average). The last-race
+  delta captures current form momentum vs teammate.
+- team_best_position uses last5: The "car ceiling" signal — what's the best this car can do recently? Useful for detecting whether a team had one exceptional
+  outlier (strategy, safety car) vs consistent pace.
+- OLS slope: Reuses the same np.polyfit approach as fantasy_points_trend_last5 in v2. Requires ≥2 data points; defaults to 0.0 when insufficient.
 
  ---
- DurationField → seconds
+Verification
 
- Django returns Python timedelta for DurationField. In the _load_fp_laps query, convert immediately:
-```python
- laps_qs = Lap.objects.filter(...).values(
-     "driver_id", "session__session_type",
-     "lap_time", "tyre_life", "stint", "compound",
-     "sector1_time", "sector2_time", "sector3_time",
- )
- df = pd.DataFrame(laps_qs)
- df["lap_time_seconds"] = df["lap_time"].apply(
-     lambda t: t.total_seconds() if t is not None else None
- )
- # Same for sector columns
+# Run backtest comparing v3 vs v4 feature stores, same predictor and optimizer
+python manage.py backtest --feature-store v3 v4 --predictor v4 --optimizer v4 --seasons 2024
+
+# Quick sanity check: print feature vector for one driver at one event
+```
+python manage.py shell -c "
+from predictions.features.v4 import V4FeatureStore
+from core.models import Event
+e = Event.objects.filter(season__year=2024).order_by('event_date')[5]
+fs = V4FeatureStore()
+df = fs.get_all_driver_features(e.id)
+print(df[['driver_id','position_last1','position_slope','best_position_last5','teammate_delta','team_best_position','quali_last1','quali_slope']].to_string())
+"
 ```
 
- ---
- Tests — predictions/tests/test_features_v4.py
-
- Follow the V3 test structure. Test each helper in isolation first, then integration.
-
- Required test cases:
- - _fp_long_run_pace_ranks: fastest driver ranked 1, slower ranked 2+; stints <5 laps excluded; pit in/out laps excluded; inaccurate laps excluded; missing driver gets 10.5
- - _fp_tyre_deg_ranks: highest slope gets worst rank; flat pace (slope≈0) gets rank 1; missing driver gets 10.5
- - _fp_sector_ranks: best sector time per session; null sector times ignored; missing driver gets 10.5
- - _fp_total_laps: counts all accurate non-pit FP laps; missing driver gets 0.0
- - _fp_session_availability: returns 1.0 for event with only FP1, 3.0 for event with FP1+FP2+FP3
- - fp_short_vs_long_delta: practice_best_lap_rank - fp_long_run_pace_rank computed correctly
- - Feature count: assert V4 produces exactly V3_count + 8 features
- - Sprint weekend: all features have sensible defaults when only FP1 available
-
- ---
- Critical files
-
- - Create: predictions/features/v4.py
- - Modify: predictions/tests/factories.py — extend make_lap with compound/tyre_life/stint/sector kwargs
- - Modify: predictions/management/commands/backtest.py — add v4 to registry + import
- - Modify: f1_data/settings.py — add "v4" to ML_FEATURE_STORE_VERSIONS
- - Create: predictions/tests/test_features_v4.py
- - Reference: predictions/features/v3_pandas.py — template for structure and patterns
- - Reference: predictions/features/v1_pandas.py — practice_best_lap_rank column name confirmed here (line 263)
-
- ---
- Verification
-
- # Unit tests
- /Users/joewilkinson/Projects/formula1/venv/bin/python manage.py test predictions.tests.test_features_v4 -v 2
-
- # Backtest comparison — v3 vs v4 with same predictor
- /Users/joewilkinson/Projects/formula1/venv/bin/python manage.py backtest \
-   --seasons 2024 2025 \
-   --feature-store v3 v4 \
-   --predictor v3 \
-   --optimizer v2
-
- Expected: v4 shows improved rank metrics (Spearman ρ, NDCG@10) vs v3. MAE may not improve much — the new features help with ordering, not point estimation.
+New features should be non-null for most drivers at any race from round 4 onwards (first 3 rounds have insufficient history for slopes).
