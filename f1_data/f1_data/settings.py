@@ -92,9 +92,10 @@ ILP_TRANSFER_THRESHOLD: float = 10
 
 # ML pipeline versions to use for next_race and score_lineup.
 # Update these when a new version outperforms the current one in backtesting.
-#   ML_FEATURE_STORE: "v1" | "v2" | "v3"
-#   ML_PREDICTOR:     "v1" | "v2"
-#   ML_OPTIMIZER:     "v1" | "v2" | "v3"
+#   ML_FEATURE_STORE: "v1" | "v2" | "v3" | "v4"
+#   ML_PREDICTOR (xgboost family): "v1" | "v2" | "v3" | "v4"
+#   ML_OPTIMIZER:     "v1" | "v2" | "v3" | "v4"
+#   Predictor families (backtest_model --family): xgboost | qualifying_ranker | race_ranker | sprint_ranker
 PRICE_SENSITIVITY: float = 1.0  # tune via: backtest --price-sensitivity 0 1 2 3 5 8 10 15 20
 
 ML_FEATURE_STORE: str = "v2"
@@ -114,6 +115,11 @@ NEW_ENTRANT_POSITION_DEFAULT: float = 18.0
 ML_PREDICTOR_VERSIONS: list[str] = ["v1", "v2", "v3", "v4"]
 ML_PREDICTOR_V3_HALF_LIFE: int = 10  # events; tune by updating and re-running backtest
 ML_OPTIMIZER_VERSIONS: list[str] = ["v1", "v2", "v3", "v4"]
+
+# Per-family predictor version lists — update when adding new versions to a family.
+# backtest_model uses these for --predictor choices validation per family.
+ML_QUALIFYING_RANKER_VERSIONS: list[str] = ["v1"]
+ML_RACE_RANKER_VERSIONS: list[str] = ["v1"]
 
 # Monte Carlo optimizer: number of scenarios to sample per race.
 # Higher = more robust candidate diversity but slower. 500 ≈ 0.25s/race with Greedy inner.

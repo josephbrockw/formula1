@@ -248,11 +248,12 @@ This should happen as a standalone refactor PR before any new models are added. 
 - Backtest: use f1_data/predictions/management/commands/backtest_model.py to test new qualifying model
 
 **PR 8 — Race position model with quali feature**
-- New predictor: `race_ranker.py` using `XGBRanker`
+- New predictor: `f1_data/predictions/predictors/race_ranker/v1_race.py` using `XGBRanker`
 - Feature set includes `predicted_quali_position` from PR 7's model as a synthetic feature
+  - We should have a `f1_data/predictions/features/race/v1_race.py` for this.
 - Pipeline change: train quali model first → predict quali for current event → feed into race model features → predict race
 - Training: during walk-forward, for historical events use *actual* qualifying positions as the feature (since they're known). Only at prediction time use the quali model's output. This avoids compounding training-time errors.
-- Backtest: measure Spearman ρ on race predictions, compare to current approach
+- Backtest with backtest_model
 
 **PR 9 — Points mapper + sprint model + integration**
 - Deterministic points mapper: position → fantasy points using `ScoringRule` lookup

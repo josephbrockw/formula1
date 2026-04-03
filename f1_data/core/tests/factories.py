@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import pandas as pd
@@ -111,7 +111,7 @@ def make_session_mock(
     mock.laps = make_laps_dataframe(num_drivers=num_drivers, num_laps=num_laps)
     mock.results = make_results_dataframe(num_drivers=num_drivers)
     mock.weather_data = make_weather_dataframe()
-    mock.date = session_date or datetime(2024, 3, 2, 14, 0, 0)
+    mock.date = session_date or datetime(2024, 3, 2, 14, 0, 0, tzinfo=timezone.utc)
     return mock
 
 
@@ -136,7 +136,7 @@ def make_schedule_dataframe(
             idx = slot - 1
             if idx < len(sessions):
                 row[f"Session{slot}"] = sessions[idx]
-                row[f"Session{slot}Date"] = pd.Timestamp(f"{year}-03-{22 + i} {10 + slot}:00:00")
+                row[f"Session{slot}Date"] = pd.Timestamp(f"{year}-03-{22 + i} {10 + slot}:00:00", tz="UTC")
             else:
                 row[f"Session{slot}"] = ""
                 row[f"Session{slot}Date"] = pd.NaT

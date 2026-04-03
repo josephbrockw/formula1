@@ -43,7 +43,9 @@ from predictions.predictors.xgboost.v2 import XGBoostPredictorV2
 from predictions.predictors.xgboost.v3 import XGBoostPredictorV3
 from predictions.predictors.xgboost.v4 import XGBoostPredictorV4
 from predictions.features.qualifying.v1_qualify import build_qualifying_training_dataset
+from predictions.features.race.v1_race import RaceV1FeatureStore
 from predictions.predictors.qualifying_ranker.v1_qualify import QualifyingRankerV1
+from predictions.predictors.race_ranker.v1_race import RaceRankerV1
 from predictions.predictors.xgboost.shared import build_training_dataset, walk_forward_splits
 
 # ---------------------------------------------------------------------------
@@ -66,7 +68,7 @@ _FAMILY_PREDICTOR_REGISTRY: dict[str, dict[str, type]] = {
         "v3": XGBoostPredictorV3,
         "v4": XGBoostPredictorV4,
     },
-    "race_ranker": {},
+    "race_ranker": {"v1": RaceRankerV1},
     "qualifying_ranker": {"v1": QualifyingRankerV1},
     "sprint_ranker": {},
     "price_heuristic": {},
@@ -87,15 +89,25 @@ _SESSION_TYPE_TO_EVENT_TYPE = {"R": "race", "Q": "qualifying", "S": "sprint"}
 
 # Maps family → the function used to build (X, y) training DataFrames.
 # Each family targets a different session type, so each needs its own builder.
-# Placeholder families (race_ranker, sprint_ranker) fall back to the race builder
-# as a safe default — they raise CommandError before _run_combo is called anyway
-# (empty predictor registries), so these entries are never actually invoked yet.
+# sprint_ranker falls back to the race builder as a safe default — it raises
+# CommandError before _run_combo is called anyway (empty predictor registry).
 _FAMILY_BUILD_DATASET = {
     "xgboost": build_training_dataset,
-    "race_ranker": build_training_dataset,          # placeholder
+    "race_ranker": build_training_dataset,
     "qualifying_ranker": build_qualifying_training_dataset,
     "sprint_ranker": build_training_dataset,        # placeholder, sprint builder TBD
     "price_heuristic": build_training_dataset,      # unreachable (raises before _run_combo)
+}
+
+# Some predictor families require a family-specific feature store that is NOT
+# interchangeable with the generic v1/v2/v3/v4 stores. For these families the
+# --feature-store argument is ignored and the override class is always used.
+#
+# race_ranker must always use RaceV1FeatureStore because it adds the
+# `predicted_quali_position` column that RaceRankerV1 expects in its feature
+# matrix. Using a generic store would cause a KeyError at fit/predict time.
+_FAMILY_FEATURE_STORE_OVERRIDE: dict[str, type] = {
+    "race_ranker": RaceV1FeatureStore,
 }
 
 _ALL_FAMILIES = sorted(_FAMILY_PREDICTOR_REGISTRY)
@@ -174,6 +186,16 @@ class Command(BaseCommand):
             raise CommandError(
                 f"Unknown predictor version(s) for '{family}': {unknown}. "
                 f"Available: {available}"
+            )
+
+        # Warn if --feature-store was passed for a family that mandates its own store.
+        # The default value is ["v2"], so any other value means the user explicitly
+        # passed something that will be silently ignored — better to tell them.
+        if family in _FAMILY_FEATURE_STORE_OVERRIDE and fs_versions != ["v2"]:
+            override_cls = _FAMILY_FEATURE_STORE_OVERRIDE[family]
+            self.stdout.write(
+                f"Note: --feature-store {fs_versions} ignored for '{family}'. "
+                f"This family always uses {override_cls.__name__}."
             )
 
         events = list(
@@ -282,7 +304,13 @@ def _run_combo(
     session_type: str,
     stdout,
 ) -> _ComboSummary:
-    feature_store = _FEATURE_STORE_REGISTRY[fs_version]()
+    # Some families mandate their own feature store (e.g. race_ranker requires
+    # RaceV1FeatureStore for the predicted_quali_position column). Use the override
+    # when present; otherwise use the generic store selected by --feature-store.
+    if family in _FAMILY_FEATURE_STORE_OVERRIDE:
+        feature_store = _FAMILY_FEATURE_STORE_OVERRIDE[family]()
+    else:
+        feature_store = _FEATURE_STORE_REGISTRY[fs_version]()
     predictor = predictor_registry[pred_version]()
 
     header = (

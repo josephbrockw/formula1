@@ -166,11 +166,11 @@ class TestCommandValidation(TestCase):
         return events
 
     def test_empty_family_raises_command_error(self) -> None:
-        """race_ranker has an empty predictor registry — must raise CommandError."""
+        """sprint_ranker has an empty predictor registry — must raise CommandError."""
         self._make_events(6)
         with self.assertRaises(CommandError) as ctx:
-            call_command("backtest_model", "race_ranker", seasons=[2024])
-        self.assertIn("race_ranker", str(ctx.exception))
+            call_command("backtest_model", "sprint_ranker", seasons=[2024])
+        self.assertIn("sprint_ranker", str(ctx.exception))
 
     def test_price_heuristic_raises_command_error(self) -> None:
         """price_heuristic is not a ranking predictor — must raise CommandError."""
