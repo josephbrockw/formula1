@@ -239,11 +239,13 @@ This should happen as a standalone refactor PR before any new models are added. 
    (no lineup, no optimizer, no oracle, no transfer penalty - just model performance metrics) is different enough to warrant its own command.
 
 **PR 7 — Qualifying position model**
-- New predictor: `qualifying_ranker.py` using `XGBRanker` with `objective='rank:pairwise'`
+- New predictor: `f1_data/predictions/predictors/qualifying_ranker/v1_qualify.py` using `XGBRanker` with `objective='rank:pairwise'`
+  -  There might be some useful code in `f1_data/predictions/predictors/basey.py` and `f1_data/predictions/predictors/xgboost/shared.py`
 - Training target: qualifying position per race (from `SessionResult` where `session_type='Q'`)
 - Group parameter: race event (ranking is within-race)
 - `build_training_dataset` variant that produces qualifying-specific targets
-- Backtest: measure Spearman ρ on qualifying predictions separately
+  - This should live in `f1_data/predictions/features/qualifying/v1_qualify.py`
+- Backtest: use f1_data/predictions/management/commands/backtest_model.py to test new qualifying model
 
 **PR 8 — Race position model with quali feature**
 - New predictor: `race_ranker.py` using `XGBRanker`

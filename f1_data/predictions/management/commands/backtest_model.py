@@ -42,6 +42,8 @@ from predictions.predictors.xgboost.v1 import XGBoostPredictor
 from predictions.predictors.xgboost.v2 import XGBoostPredictorV2
 from predictions.predictors.xgboost.v3 import XGBoostPredictorV3
 from predictions.predictors.xgboost.v4 import XGBoostPredictorV4
+from predictions.features.qualifying.v1_qualify import build_qualifying_training_dataset
+from predictions.predictors.qualifying_ranker.v1_qualify import QualifyingRankerV1
 from predictions.predictors.xgboost.shared import build_training_dataset, walk_forward_splits
 
 # ---------------------------------------------------------------------------
@@ -65,7 +67,7 @@ _FAMILY_PREDICTOR_REGISTRY: dict[str, dict[str, type]] = {
         "v4": XGBoostPredictorV4,
     },
     "race_ranker": {},
-    "qualifying_ranker": {},
+    "qualifying_ranker": {"v1": QualifyingRankerV1},
     "sprint_ranker": {},
     "price_heuristic": {},
 }
@@ -82,6 +84,19 @@ _FAMILY_SESSION_TYPE: dict[str, str | None] = {
 
 # FantasyDriverScore.event_type uses English strings, not the session type codes.
 _SESSION_TYPE_TO_EVENT_TYPE = {"R": "race", "Q": "qualifying", "S": "sprint"}
+
+# Maps family → the function used to build (X, y) training DataFrames.
+# Each family targets a different session type, so each needs its own builder.
+# Placeholder families (race_ranker, sprint_ranker) fall back to the race builder
+# as a safe default — they raise CommandError before _run_combo is called anyway
+# (empty predictor registries), so these entries are never actually invoked yet.
+_FAMILY_BUILD_DATASET = {
+    "xgboost": build_training_dataset,
+    "race_ranker": build_training_dataset,          # placeholder
+    "qualifying_ranker": build_qualifying_training_dataset,
+    "sprint_ranker": build_training_dataset,        # placeholder, sprint builder TBD
+    "price_heuristic": build_training_dataset,      # unreachable (raises before _run_combo)
+}
 
 _ALL_FAMILIES = sorted(_FAMILY_PREDICTOR_REGISTRY)
 
@@ -283,7 +298,10 @@ def _run_combo(
 
     for n, (train_events, test_event) in enumerate(splits, start=1):
         # 1. Build training data and fit the predictor on all past events.
-        X, y = build_training_dataset(train_events, feature_store)
+        # Each predictor family targets a different session type, so we dispatch
+        # to the appropriate dataset builder (e.g. qualifying builder for qualifying_ranker).
+        build_fn = _FAMILY_BUILD_DATASET[family]
+        X, y = build_fn(train_events, feature_store)
         if X.empty:
             continue
 

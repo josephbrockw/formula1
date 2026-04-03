@@ -166,11 +166,11 @@ class TestCommandValidation(TestCase):
         return events
 
     def test_empty_family_raises_command_error(self) -> None:
-        """qualifying_ranker has an empty predictor registry — must raise CommandError."""
+        """race_ranker has an empty predictor registry — must raise CommandError."""
         self._make_events(6)
         with self.assertRaises(CommandError) as ctx:
-            call_command("backtest_model", "qualifying_ranker", seasons=[2024])
-        self.assertIn("qualifying_ranker", str(ctx.exception))
+            call_command("backtest_model", "race_ranker", seasons=[2024])
+        self.assertIn("race_ranker", str(ctx.exception))
 
     def test_price_heuristic_raises_command_error(self) -> None:
         """price_heuristic is not a ranking predictor — must raise CommandError."""
@@ -304,7 +304,7 @@ class TestBacktestModelCommand(TestCase):
         for qualifying, but if we were to have a qualifying_ranker, it would use Q.
         This test validates that _actuals_for_session correctly fetches Q data.
         We test this via _actuals_for_session directly since qualifying_ranker
-        has no registered predictors yet.
+        now has v1 registered but the full command test is in test_qualifying_ranker_v1.
         """
         season, drivers, teams = self._make_world()
         event = make_event(season, round_number=1)
